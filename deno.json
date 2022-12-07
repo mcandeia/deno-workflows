@@ -1,0 +1,8 @@
+{
+  "fmt": {
+    "files": {
+      "exclude": ["README.md", "LICENSE"]
+    }
+  },
+  "importMap": "./import_map.json"
+}
