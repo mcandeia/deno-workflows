@@ -19,7 +19,7 @@ export type NoArgWorkflowFn<TResp = unknown> = () => WorkflowGen<TResp>;
 export const isNoArgFn = function <TArgs extends Arg = Arg, TResp = unknown>(
   fn: WorkflowGenFn<TArgs, TResp>
 ): fn is NoArgWorkflowFn<TResp> {
-  return fn.arguments.length == 0;
+  return fn.length == 0;
 };
 
 export type Workflow<TArgs extends Arg = Arg, TResp = unknown> = (

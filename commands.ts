@@ -1,10 +1,6 @@
 import { Backend } from "./backend.ts";
-import { Activity, isValue, WorkflowContext } from "./context.ts";
-import {
-  ActivityFinishedEvent,
-  ActivityStartedEvent,
-  HistoryEvent,
-} from "./events.ts";
+import { Activity, WorkflowContext } from "./context.ts";
+import { ActivityStartedEvent, HistoryEvent } from "./events.ts";
 import { isAwaitable, PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
 
@@ -143,9 +139,8 @@ export class ScheduleActivityCommand<
   public get name(): string {
     return "schedule_activity";
   }
-  public async run(be: Backend): Promise<HistoryEvent[]> {
+  public async run(_: Backend): Promise<HistoryEvent[]> {
     const started = new Date();
-    const result = this.activity(this.ctx, ...this.input);
     const eventBase = {
       id: this.id,
       activityName: this.activity.name,
@@ -159,30 +154,11 @@ export class ScheduleActivityCommand<
       input: this.input,
     };
 
-    if (isAwaitable(result)) {
-      const [success, resp] = await result
-        .then<[true, TResult]>((result) => [true, result])
-        .catch<[false, Error]>((err) => [false, err]);
-
-      const baseCompletedEvent: ActivityFinishedEvent<TResult> = {
-        ...eventBase,
-        timestamp: new Date(),
-        type: "activity_completed",
-      };
-
-      return [
-        startedEvent,
-        success
-          ? {
-              ...baseCompletedEvent,
-              result: resp,
-            }
-          : {
-              ...baseCompletedEvent,
-              exception: resp,
-            },
-      ];
-    } else if (isValue(result)) {
+    try {
+      const activityResult = this.activity(this.ctx, ...this.input);
+      const result = isAwaitable(activityResult)
+        ? await activityResult
+        : activityResult;
       return [
         startedEvent,
         {
@@ -192,42 +168,16 @@ export class ScheduleActivityCommand<
           result,
         },
       ];
-    } else {
-      const instanceId = `${this.ctx.instanceId}${this.ctx.random()}`;
-      if (this.isReplaying) {
-        const state = await be.getWorkflowInstanceState({ instanceId });
-        if (state.hasFinished) {
-          return [
-            startedEvent,
-            state.exception
-              ? {
-                  ...eventBase,
-                  type: "activity_completed",
-                  timestamp: new Date(),
-                  exception: state.exception,
-                }
-              : {
-                  ...eventBase,
-                  type: "activity_completed",
-                  timestamp: new Date(),
-                  result: state.result,
-                },
-          ];
-        }
-      } else {
-        await be.createWorkflowInstance(
-          { instanceId },
-          {
-            id: instanceId,
-            timestamp: new Date(),
-            type: "workflow_started",
-            input: this.input,
-          }
-        );
-        return [{ ...startedEvent, innerWorkflowInstance: instanceId }];
-      }
+    } catch (error) {
+      return [
+        startedEvent,
+        {
+          ...eventBase,
+          timestamp: new Date(),
+          type: "activity_completed",
+          exception: error,
+        },
+      ];
     }
-
-    return [startedEvent];
   }
 }

@@ -11,7 +11,7 @@ export interface WorkflowState<TArgs extends Arg = Arg, TResult = unknown> {
   hasFinished?: boolean;
   input?: TArgs;
   result?: TResult;
-  exception?: Error;
+  exception?: unknown;
   startedAt?: Date;
   finishedAt?: Date;
   cancelledAt?: Date;

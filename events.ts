@@ -25,7 +25,7 @@ export interface WorkflowStartedEvent<TArgs extends Arg = Arg> extends Event {
 export interface WorkflowFinishedEvent<TResult = unknown> extends Event {
   type: "workflow_finished";
   result?: TResult;
-  exception?: Error;
+  exception?: unknown;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface ActivityStartedEvent<TArgs extends Arg = Arg> extends Event {
  */
 export interface ActivityFinishedEvent<TResult = unknown> extends Event {
   result?: TResult;
-  exception?: Error;
+  exception?: unknown;
   activityName: string;
   type: "activity_completed";
 }
@@ -103,6 +103,7 @@ const activity_completed = function <
       ? {
           hasFinished: true,
           result: genResult.value,
+          current: { ...state.current, isCompleted: true },
         }
       : {
           current: genResult.value,
@@ -144,11 +145,16 @@ const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
   if (generatorFn === undefined) {
     throw new Error("input not provided for genfn func");
   }
-
+  const next = generatorFn.next();
+  const baseState = { ...state, startedAt: timestamp, generatorFn };
+  if (next.done) {
+    return { ...baseState, hasFinished: true, result: next.value };
+  }
   return {
     ...state,
     startedAt: timestamp,
     generatorFn,
+    current: next.value,
   };
 };
 
@@ -161,9 +167,12 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   workflow_started,
 };
 
-export function apply(
-  workflowState: WorkflowState,
+export function apply<TArgs extends Arg = Arg, TResult = unknown>(
+  workflowState: WorkflowState<TArgs, TResult>,
   event: HistoryEvent
-): WorkflowState {
-  return handlers[event.type](workflowState, event);
+): WorkflowState<TArgs, TResult> {
+  return handlers[event.type](
+    workflowState as WorkflowState,
+    event
+  ) as WorkflowState<TArgs, TResult>;
 }

@@ -3,11 +3,9 @@ import {
   RandomGenerators,
 } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 import { CommandBase, ScheduleActivityCommand } from "./commands.ts";
+import { PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
-//import { crypto } from "std/crypto/mod.ts";
-export type ActivityResult<T> =
-  // deno-lint-ignore no-explicit-any
-  Generator<CommandBase, T | Promise<T>, any> | T | Promise<T>;
+export type ActivityResult<T> = PromiseOrValue<T>;
 
 /**
  * Returns if the given activity result is a generator or not.
