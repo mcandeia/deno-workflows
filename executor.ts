@@ -1,11 +1,11 @@
-import { defaultBackend } from "./backend.ts";
+import { inMemoryBackend } from "./backend.ts";
 import { WorkflowContext } from "./context.ts";
 import { apply } from "./events.ts";
 import { WorkflowState, zeroState } from "./state.ts";
 import { Arg } from "./types.ts";
 import { Workflow, WorkflowGenFn, WorkflowGen } from "./workflow.ts";
 
-export const backend = defaultBackend();
+export const backend = inMemoryBackend();
 
 export function runWorkflow<TArgs extends Arg = Arg, TResult = unknown>(
   instanceId: string,

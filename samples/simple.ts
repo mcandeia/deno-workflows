@@ -1,3 +1,4 @@
+import { storage } from "../backend.ts";
 import { WorkflowContext } from "../context.ts";
 import { backend, runWorkflow } from "../executor.ts";
 import { sleep } from "../utils.ts";
@@ -34,3 +35,5 @@ console.log(called);
 const resp2 = await runWorkflow(workflowInstanceId, myworkflow);
 console.log(resp2);
 console.log(called);
+
+console.log(storage);

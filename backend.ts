@@ -64,8 +64,9 @@ export interface Backend {
   ): Promise<T>;
 }
 
-export function defaultBackend(): Backend {
-  const storage = new Map<string, HistoryEvent[]>();
+export const storage = new Map<string, HistoryEvent[]>();
+
+export function inMemoryBackend(): Backend {
   const byInstanceMtx = new Map<string, Mutex>();
   const createMu = new Mutex();
   const withinTransaction = async function <T>(
