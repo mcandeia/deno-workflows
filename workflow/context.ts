@@ -1,22 +1,21 @@
-import { Command, ScheduleActivityCommand } from "../commands/command.ts";
+import { CommandBase, ScheduleActivityCommand } from "../commands/command.ts";
 import {
   makeSeededGenerators,
   RandomGenerators,
 } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 //import { crypto } from "std/crypto/mod.ts";
 export type Arg = readonly unknown[];
-// deno-lint-ignore no-explicit-any
-export type ActivityResult<T> = Generator<Command, T, any> | T;
+export type ActivityResult<T> =
+  // deno-lint-ignore no-explicit-any
+  Generator<CommandBase, T | Promise<T>, any> | T | Promise<T>;
 
 /**
  * Returns if the given activity result is a generator or not.
  * @param value the activity result
  * @returns a typeguard for activity result.
  */
-export const isGenerator = <T>(
-  value: ActivityResult<T>
-): value is Generator<Command, T> => {
-  return (value as Generator).next !== undefined;
+export const isValue = <T>(value: ActivityResult<T>): value is T => {
+  return (value as Generator).next === undefined;
 };
 export type Activity<TResult, TArgs extends Arg> = (
   ctx: WorkflowContext,
@@ -33,8 +32,10 @@ export type ActivityExecutor<TResult, TArgs extends Arg> = (
  */
 export class WorkflowContext {
   private rand: RandomGenerators;
+  private signals: Map<string, (v: unknown) => void>;
   constructor(public instanceId: string) {
     this.rand = makeSeededGenerators(instanceId);
+    this.signals = new Map();
   }
   /**
    * Executes the activity for the given context and args.
@@ -44,8 +45,17 @@ export class WorkflowContext {
   public callActivity<TResult, TArgs extends Arg>(
     activity: Activity<TResult, TArgs>,
     ...args: [...TArgs]
-  ): Command {
+  ): CommandBase {
     return new ScheduleActivityCommand<TArgs, TResult>(activity, this, args);
+  }
+
+  /**
+   * Wait for signal adds a signal pending callback
+   * @param signal the signal name
+   * @param callback the signal callback
+   */
+  public waitForSignal(signal: string, callback: (v: unknown) => void) {
+    this.signals.set(signal, callback);
   }
 
   /**

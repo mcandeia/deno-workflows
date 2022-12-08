@@ -1,8 +1,16 @@
 import { ActivityResult, WorkflowContext } from "../workflow/context.ts";
-import { runWorkflow } from "../workflow/executor.ts";
+import { runWorkflow, storage } from "../workflow/executor.ts";
 
-function plsSum(_: WorkflowContext, a: number, b: number): number {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function plsSum(
+  _: WorkflowContext,
+  a: number,
+  b: number
+): Promise<number> {
   console.log("CALLING ACTIVITY PLSSUM");
+  await sleep(1000);
+  console.log("CALLING ACTIVITY PLSSUM1");
   return a + b;
 }
 
@@ -15,15 +23,25 @@ function* sum(
   return yield ctx.callActivity(plsSum, a, b);
 }
 const workflowInstanceId = "test";
-const resp = runWorkflow(function* (ctx: WorkflowContext) {
-  const resp: number = yield ctx.callActivity(sum, 10, 20);
-  return resp;
-}, workflowInstanceId);
-
+const resp = await runWorkflow(
+  workflowInstanceId,
+  function* (ctx: WorkflowContext) {
+    const resp: number = yield ctx.callActivity(plsSum, 10, 20);
+    return resp;
+  }
+);
 console.log(resp);
-const resp2 = runWorkflow(function* (ctx: WorkflowContext) {
-  const resp: number = yield ctx.callActivity(sum, 10, 20);
-  return resp;
-}, workflowInstanceId);
+console.log(storage);
+
+await sleep(5000);
+
+const resp2 = await runWorkflow(
+  workflowInstanceId,
+  function* (ctx: WorkflowContext) {
+    const resp: number = yield ctx.callActivity(plsSum, 10, 20);
+    return resp;
+  }
+);
 
 console.log(resp2);
+console.log(storage);
