@@ -25,7 +25,6 @@ export interface WorkflowStartedEvent<TArgs extends Arg = Arg> extends Event {
 export interface WorkflowFinishedEvent<TResult = unknown> extends Event {
   type: "workflow_finished";
   result?: TResult;
-  exception?: unknown;
 }
 
 /**
@@ -101,8 +100,7 @@ const activity_completed = function <
       : state.generatorFn!.throw(exception);
     const stateUpdate: Partial<WorkflowState<TArgs, TResult>> = genResult.done
       ? {
-          hasFinished: true,
-          result: genResult.value,
+          lastResult: genResult,
           current: { ...state.current, isCompleted: true },
         }
       : {
@@ -123,11 +121,8 @@ const activity_started = function <TArgs extends Arg = Arg, TResult = unknown>(
 
 const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
-  { result, exception, timestamp: finishedAt }: WorkflowFinishedEvent<TResult>
+  { result, timestamp: finishedAt }: WorkflowFinishedEvent<TResult>
 ): WorkflowState<TArgs, TResult> {
-  if (result === undefined) {
-    return { ...state, hasFinished: true, finishedAt, exception };
-  }
   return { ...state, hasFinished: true, finishedAt, result };
 };
 
@@ -146,14 +141,17 @@ const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
     throw new Error("input not provided for genfn func");
   }
   const next = generatorFn.next();
-  const baseState = { ...state, startedAt: timestamp, generatorFn };
+  const baseState = {
+    ...state,
+    startedAt: timestamp,
+    generatorFn,
+    lastResult: next,
+  };
   if (next.done) {
     return { ...baseState, hasFinished: true, result: next.value };
   }
   return {
-    ...state,
-    startedAt: timestamp,
-    generatorFn,
+    ...baseState,
     current: next.value,
   };
 };

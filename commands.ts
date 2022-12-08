@@ -56,7 +56,7 @@ export abstract class CommandBase implements Command {
    * @param id
    *  The task's ID
    */
-  constructor(public id: string) {
+  constructor() {
     this.state = "Running";
   }
 
@@ -91,7 +91,7 @@ export abstract class CommandBase implements Command {
 
     if (isError) {
       if (!(value instanceof Error)) {
-        const errMessage = `Command ID ${this.id} failed but it's value was not an Exception`;
+        const errMessage = `Command failed but it's value was not an Exception`;
         throw new Error(errMessage);
       }
       newState = "Failed";
@@ -115,7 +115,7 @@ export class NoOpCommand extends CommandBase {
     return [];
   }
   constructor() {
-    super("");
+    super();
     this.state = "Completed";
     this.result = undefined;
   }
@@ -133,7 +133,7 @@ export class ScheduleActivityCommand<
     protected ctx: WorkflowContext,
     protected input: [...TArgs]
   ) {
-    super(activity.name);
+    super();
   }
 
   public get name(): string {
@@ -142,12 +142,12 @@ export class ScheduleActivityCommand<
   public async run(_: Backend): Promise<HistoryEvent[]> {
     const started = new Date();
     const eventBase = {
-      id: this.id,
       activityName: this.activity.name,
     };
 
     const startedEvent: ActivityStartedEvent<TArgs> = {
       ...eventBase,
+      id: `${this.ctx.random()}`,
       timestamp: started,
       activityName: this.activity.name,
       type: "activity_started",
@@ -163,6 +163,7 @@ export class ScheduleActivityCommand<
         startedEvent,
         {
           ...eventBase,
+          id: `${this.ctx.random()}`,
           timestamp: new Date(),
           type: "activity_completed",
           result,
@@ -173,6 +174,7 @@ export class ScheduleActivityCommand<
         startedEvent,
         {
           ...eventBase,
+          id: `${this.ctx.random()}`,
           timestamp: new Date(),
           type: "activity_completed",
           exception: error,

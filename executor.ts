@@ -1,6 +1,6 @@
 import { inMemoryBackend } from "./backend.ts";
 import { WorkflowContext } from "./context.ts";
-import { apply } from "./events.ts";
+import { apply, HistoryEvent } from "./events.ts";
 import { WorkflowState, zeroState } from "./state.ts";
 import { Arg } from "./types.ts";
 import { Workflow, WorkflowGenFn, WorkflowGen } from "./workflow.ts";
@@ -23,13 +23,28 @@ export function runWorkflow<TArgs extends Arg = Arg, TResult = unknown>(
       zeroState(workflowFn)
     );
 
+    // it should be done by a command handler executor in background.
     while (
-      !state.hasFinished ||
-      !state.current.isCompleted ||
-      state.cancelledAt
+      !(
+        state.hasFinished ||
+        state.lastResult?.done ||
+        state.cancelledAt !== undefined ||
+        state.current.isCompleted
+      )
     ) {
       const newEvents = await state.current.run(backend);
+
       state = newEvents.reduce(apply, state);
+      if (state.lastResult!.done) {
+        const finishedEvent: HistoryEvent = {
+          type: "workflow_finished",
+          id: `${ctx.random()}`,
+          timestamp: new Date(),
+          result: state.lastResult?.value,
+        };
+        state = apply(state, finishedEvent);
+        newEvents.push(finishedEvent);
+      }
       add(newEvents);
     }
     return state;
