@@ -1,3 +1,4 @@
+import { FinishWorkflowCommand } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
 import { Arg } from "./types.ts";
 import { isNoArgFn } from "./workflow.ts";
@@ -42,13 +43,12 @@ export interface ActivityStartedEvent<TArgs extends Arg = Arg> extends Event {
   input?: TArgs;
   type: "activity_started";
   activityName: string;
-  innerWorkflowInstance?: string;
 }
 
 /**
  * Raised when an activity is in completed state.
  */
-export interface ActivityFinishedEvent<TResult = unknown> extends Event {
+export interface ActivityCompletedEvent<TResult = unknown> extends Event {
   result?: TResult;
   exception?: unknown;
   activityName: string;
@@ -63,7 +63,7 @@ export type HistoryEvent =
   | WorkflowFinishedEvent
   | WorkflowCancelledEvent
   | ActivityStartedEvent
-  | ActivityFinishedEvent;
+  | ActivityCompletedEvent;
 
 type EventHandler<TEvent extends HistoryEvent = HistoryEvent> = (
   state: WorkflowState,
@@ -92,7 +92,7 @@ const activity_completed = function <
   TResult = unknown
 >(
   state: WorkflowState<TArgs, TResult>,
-  { exception, result }: ActivityFinishedEvent<TResult>
+  { exception, result }: ActivityCompletedEvent<TResult>
 ): WorkflowState<TArgs, TResult> {
   try {
     const genResult = result
@@ -100,8 +100,7 @@ const activity_completed = function <
       : state.generatorFn!.throw(exception);
     const stateUpdate: Partial<WorkflowState<TArgs, TResult>> = genResult.done
       ? {
-          lastResult: genResult,
-          current: { ...state.current, isCompleted: true },
+          current: new FinishWorkflowCommand<TResult>(genResult.value),
         }
       : {
           current: genResult.value,
@@ -145,7 +144,6 @@ const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
     ...state,
     startedAt: timestamp,
     generatorFn,
-    lastResult: next,
   };
   if (next.done) {
     return { ...baseState, hasFinished: true, result: next.value };

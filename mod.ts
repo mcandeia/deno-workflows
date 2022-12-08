@@ -43,7 +43,7 @@ export interface WorkflowClient {
     timeoutMs: number
   ): Promise<void>;
   /**
-   * singal the workflow with the given {name}
+   * signal the workflow with the given {name}
    * @param instanceId the workflow instance id
    * @param name the name of the signals
    * @param args the signal arguments.

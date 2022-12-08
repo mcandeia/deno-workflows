@@ -3,6 +3,7 @@ import { Activity, WorkflowContext } from "./context.ts";
 import { ActivityStartedEvent, HistoryEvent } from "./events.ts";
 import { isAwaitable, PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
+import { randomFloat } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 
 /**
  * The possible command state
@@ -181,5 +182,44 @@ export class ScheduleActivityCommand<
         },
       ];
     }
+  }
+}
+
+export class FinishWorkflowCommand<TResult = unknown> extends CommandBase {
+  constructor(private resp: TResult) {
+    super();
+  }
+  run(_: Backend): PromiseOrValue<HistoryEvent[]> {
+    return [
+      {
+        result: this.resp,
+        timestamp: new Date(),
+        id: `${randomFloat()}`,
+        type: "workflow_finished",
+      },
+    ];
+  }
+  get name(): string {
+    throw "finish_workflow";
+  }
+}
+
+// todo can be used later.
+export class StartWorkflowCommand<TArgs extends Arg = Arg> extends CommandBase {
+  constructor(private args: TArgs) {
+    super();
+  }
+  run(_: Backend): PromiseOrValue<HistoryEvent[]> {
+    return [
+      {
+        input: this.args,
+        timestamp: new Date(),
+        id: `${randomFloat()}`,
+        type: "workflow_started",
+      },
+    ];
+  }
+  get name(): string {
+    throw "start_workflow";
   }
 }

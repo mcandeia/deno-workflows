@@ -8,7 +8,6 @@ import { WorkflowGen, WorkflowGenFn } from "./workflow.ts";
 export interface WorkflowState<TArgs extends Arg = Arg, TResult = unknown> {
   current: Command;
   workflowFn: WorkflowGenFn<TArgs, TResult>;
-  lastResult?: IteratorResult<Command, TResult>;
   hasFinished?: boolean;
   input?: TArgs;
   result?: TResult;
