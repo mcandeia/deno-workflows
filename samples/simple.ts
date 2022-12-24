@@ -1,47 +1,39 @@
-import { ActivityResult, WorkflowContext } from "../workflow/context.ts";
-import { runWorkflow, storage } from "../workflow/executor.ts";
+import { storage } from "../backend.ts";
+import { WorkflowContext } from "../context.ts";
+import { backend, runWorkflow } from "../executor.ts";
+import { sleep } from "../utils.ts";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
+let called = 0;
 async function plsSum(
   _: WorkflowContext,
   a: number,
   b: number
 ): Promise<number> {
-  console.log("CALLING ACTIVITY PLSSUM");
+  called++;
   await sleep(1000);
-  console.log("CALLING ACTIVITY PLSSUM1");
   return a + b;
 }
 
-function* sum(
-  ctx: WorkflowContext,
-  a: number,
-  b: number
-): ActivityResult<number> {
-  console.log("CALLING ACTIVITY SUM");
-  return yield ctx.callActivity(plsSum, a, b);
-}
 const workflowInstanceId = "test";
-const resp = await runWorkflow(
-  workflowInstanceId,
-  function* (ctx: WorkflowContext) {
-    const resp: number = yield ctx.callActivity(plsSum, 10, 20);
-    return resp;
+await backend.createWorkflowInstance(
+  { instanceId: workflowInstanceId },
+  {
+    id: workflowInstanceId,
+    timestamp: new Date(),
+    type: "workflow_started",
   }
 );
+const myworkflow = function* (ctx: WorkflowContext) {
+  const resp: number = yield ctx.callActivity(plsSum, 10, 20);
+  const resp2: number = yield ctx.callActivity(plsSum, 30, 20);
+  return resp + resp2;
+};
+
+const resp = await runWorkflow(workflowInstanceId, myworkflow);
 console.log(resp);
-console.log(storage);
-
-await sleep(5000);
-
-const resp2 = await runWorkflow(
-  workflowInstanceId,
-  function* (ctx: WorkflowContext) {
-    const resp: number = yield ctx.callActivity(plsSum, 10, 20);
-    return resp;
-  }
-);
-
+console.log(called);
+const resp2 = await runWorkflow(workflowInstanceId, myworkflow);
 console.log(resp2);
+console.log(called);
+
 console.log(storage);
