@@ -1,4 +1,4 @@
-import { FinishWorkflowCommand } from "./commands.ts";
+import { Command, FinishWorkflowCommand } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
 import { Arg } from "./types.ts";
 import { isNoArgFn } from "./workflow.ts";
@@ -10,6 +10,7 @@ export interface Event {
   type: string;
   id: string;
   timestamp: Date;
+  visibleAt?: Date;
 }
 
 /**
@@ -46,6 +47,21 @@ export interface ActivityStartedEvent<TArgs extends Arg = Arg> extends Event {
 }
 
 /**
+ * TimerScheduledEvent is the event that is raised when a timer is scheduled.
+ */
+export interface TimerScheduledEvent extends Event {
+  type: "timer_scheduled";
+  until: Date;
+}
+
+/**
+ * TimerFiredEvent is the event that is raised when a timer is fired.
+ */
+export interface TimerFiredEvent extends Event {
+  type: "timer_fired";
+}
+
+/**
  * Raised when an activity is in completed state.
  */
 export interface ActivityCompletedEvent<TResult = unknown> extends Event {
@@ -63,18 +79,42 @@ export type HistoryEvent =
   | WorkflowFinishedEvent
   | WorkflowCancelledEvent
   | ActivityStartedEvent
-  | ActivityCompletedEvent;
+  | ActivityCompletedEvent
+  | TimerScheduledEvent
+  | TimerFiredEvent;
 
 type EventHandler<TEvent extends HistoryEvent = HistoryEvent> = (
   state: WorkflowState,
   event: TEvent
 ) => WorkflowState;
 
+const next = <TResult>({
+  done,
+  value,
+}: IteratorResult<Command, TResult>): Command => {
+  return done ? new FinishWorkflowCommand<TResult>(value) : value;
+};
+
 export const no_op = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
   _: HistoryEvent
 ): WorkflowState<TArgs, TResult> {
   return state;
+};
+
+const timer_scheduled = function <TArgs extends Arg = Arg, TResult = unknown>(
+  state: WorkflowState<TArgs, TResult>,
+  _: HistoryEvent
+): WorkflowState<TArgs, TResult> {
+  state.current.isReplaying = true;
+  return state;
+};
+
+const timer_fired = function <TArgs extends Arg = Arg, TResult = unknown>(
+  state: WorkflowState<TArgs, TResult>,
+  _: HistoryEvent
+): WorkflowState<TArgs, TResult> {
+  return { ...state, current: next(state.generatorFn!.next()) };
 };
 
 const workflow_cancelled = function <
@@ -98,14 +138,7 @@ const activity_completed = function <
     const genResult = result
       ? state.generatorFn!.next(result)
       : state.generatorFn!.throw(exception);
-    const stateUpdate: Partial<WorkflowState<TArgs, TResult>> = genResult.done
-      ? {
-          current: new FinishWorkflowCommand<TResult>(genResult.value),
-        }
-      : {
-          current: genResult.value,
-        };
-    return { ...state, ...stateUpdate };
+    return { ...state, current: next(genResult) };
   } catch (err) {
     return { ...state, exception: err, hasFinished: true };
   }
@@ -115,7 +148,8 @@ const activity_started = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
   _: ActivityStartedEvent<TArgs>
 ): WorkflowState<TArgs, TResult> {
-  return { ...state, current: { ...state.current, isReplaying: true } };
+  state.current.isReplaying = true;
+  return state;
 };
 
 const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(
@@ -161,6 +195,8 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   activity_started,
   workflow_finished,
   workflow_started,
+  timer_scheduled,
+  timer_fired,
 };
 
 export function apply<TArgs extends Arg = Arg, TResult = unknown>(
