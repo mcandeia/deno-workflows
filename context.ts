@@ -2,9 +2,14 @@ import {
   makeSeededGenerators,
   RandomGenerators,
 } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
-import { CommandBase, ScheduleActivityCommand } from "./commands.ts";
+import {
+  CommandBase,
+  ScheduleActivityCommand,
+  SleepCommand,
+} from "./commands.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
+
 export type ActivityResult<T> = PromiseOrValue<T>;
 
 /**
@@ -53,6 +58,26 @@ export class WorkflowContext {
     ...args: [...TArgs]
   ): CommandBase {
     return new ScheduleActivityCommand<TArgs, TResult>(activity, this, args);
+  }
+
+  /**
+   * stop the current workflow execution and sleep the given miliseconds time.
+   * @param sleepMs the time in miliseconds
+   */
+  public sleep(sleepMs: number): CommandBase {
+    // get the current date & time (as milliseconds since Epoch)
+    const currentTimeAsMs = Date.now();
+
+    const adjustedTimeAsMs = currentTimeAsMs + sleepMs;
+    return new SleepCommand(new Date(adjustedTimeAsMs), this);
+  }
+
+  /**
+   * stops the current workflow execution and sleep until the given date.
+   * @param dt the date that should sleep.
+   */
+  public sleepUntil(dt: Date): CommandBase {
+    return new SleepCommand(dt, this);
   }
 
   /**

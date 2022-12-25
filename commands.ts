@@ -1,4 +1,3 @@
-import { Backend } from "./backend.ts";
 import { Activity, WorkflowContext } from "./context.ts";
 import { ActivityStartedEvent, HistoryEvent } from "./events.ts";
 import { isAwaitable, PromiseOrValue } from "./promise.ts";
@@ -36,9 +35,13 @@ export interface Command {
    */
   isReplaying: boolean;
   /**
+   * Change the command state
+   */
+  changeState(state: CommandState): void;
+  /**
    * Executes the underlying command and returns a list of raised events.
    */
-  run(be: Backend): PromiseOrValue<HistoryEvent[]>;
+  run(): PromiseOrValue<HistoryEvent[]>;
 }
 
 /**
@@ -61,7 +64,7 @@ export abstract class CommandBase implements Command {
     this.state = "Running";
   }
 
-  abstract run(be: Backend): PromiseOrValue<HistoryEvent[]>;
+  abstract run(): PromiseOrValue<HistoryEvent[]>;
 
   abstract get name(): string;
 
@@ -79,7 +82,7 @@ export abstract class CommandBase implements Command {
   }
 
   /** Change this task from the Running state to a completed state */
-  private changeState(state: CommandState): void {
+  public changeState(state: CommandState): void {
     if (state === "Running") {
       throw Error("Cannot change Command to the RUNNING state.");
     }
@@ -112,7 +115,7 @@ export class NoOpCommand extends CommandBase {
   get name(): string {
     return "no_op";
   }
-  run(_: Backend): HistoryEvent[] {
+  run(): HistoryEvent[] {
     return [];
   }
   constructor() {
@@ -122,6 +125,33 @@ export class NoOpCommand extends CommandBase {
   }
 }
 
+export class SleepCommand extends CommandBase {
+  constructor(protected until: Date, protected ctx: WorkflowContext) {
+    super();
+  }
+  public get name(): string {
+    return "sleep";
+  }
+  public run(): PromiseOrValue<HistoryEvent[]> {
+    if (!this.isReplaying) {
+      return [
+        {
+          type: "timer_scheduled",
+          id: `${this.ctx.random()}`,
+          timestamp: new Date(),
+          until: this.until,
+        },
+        {
+          type: "timer_fired",
+          id: `${this.ctx.random()}`,
+          timestamp: this.until,
+          visibleAt: this.until,
+        },
+      ];
+    }
+    return [];
+  }
+}
 /**
  * ScheduleActivityCommand is used for scheduling long running tasks.
  */
@@ -140,7 +170,7 @@ export class ScheduleActivityCommand<
   public get name(): string {
     return "schedule_activity";
   }
-  public async run(_: Backend): Promise<HistoryEvent[]> {
+  public async run(): Promise<HistoryEvent[]> {
     const started = new Date();
     const eventBase = {
       activityName: this.activity.name,
@@ -189,7 +219,7 @@ export class FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   constructor(private resp: TResult) {
     super();
   }
-  run(_: Backend): PromiseOrValue<HistoryEvent[]> {
+  run(): PromiseOrValue<HistoryEvent[]> {
     return [
       {
         result: this.resp,
@@ -209,7 +239,7 @@ export class StartWorkflowCommand<TArgs extends Arg = Arg> extends CommandBase {
   constructor(private args: TArgs) {
     super();
   }
-  run(_: Backend): PromiseOrValue<HistoryEvent[]> {
+  run(): PromiseOrValue<HistoryEvent[]> {
     return [
       {
         input: this.args,
