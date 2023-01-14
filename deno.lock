@@ -1,6 +1,9 @@
 {
   "version": "2",
   "remote": {
+    "https://deno.land/std@0.162.0/datetime/formatter.ts": "7c8e6d16a0950f400aef41b9f1eb9168249869776ec520265dfda785d746589e",
+    "https://deno.land/std@0.162.0/datetime/mod.ts": "ea927ca96dfb28c7b9a5eed5bdc7ac46bb9db38038c4922631895cea342fea87",
+    "https://deno.land/std@0.162.0/datetime/tokenizer.ts": "7381e28f6ab51cb504c7e132be31773d73ef2f3e1e50a812736962b9df1e8c47",
     "https://deno.land/x/semaphore@v1.1.1/mod.ts": "431abb51927a16c537cec1cfb05bf2de6a8f3916331f1ec3f9f13ad7ad6a4ea5",
     "https://deno.land/x/semaphore@v1.1.1/mutex.ts": "2cc6490481f0fdfe97c6b326a2073819d76b76eac3877864a8ada6a2127492f2",
     "https://deno.land/x/semaphore@v1.1.1/semaphore.ts": "0acf1159d635fa3b9198a4ad4acac9e877d79196601aa80544ac0db5a71c646d",

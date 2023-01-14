@@ -1,4 +1,4 @@
-import { storage } from "../backend.ts";
+import { storage } from "../backends/memory/db.ts";
 import { WorkflowContext } from "../context.ts";
 import { backend, runWorkflow } from "../executor.ts";
 import { sleep } from "../utils.ts";
@@ -15,16 +15,19 @@ async function plsSum(
 }
 
 const workflowInstanceId = "test";
-await backend.createWorkflowInstance(
-  { instanceId: workflowInstanceId },
-  {
-    id: workflowInstanceId,
-    timestamp: new Date(),
-    type: "workflow_started",
-  }
-);
+await backend.withinTransaction(workflowInstanceId, (_, __, { addPending }) => {
+  addPending([
+    {
+      id: workflowInstanceId,
+      timestamp: new Date(),
+      type: "workflow_started",
+    },
+  ]);
+});
+
 const myworkflow = function* (ctx: WorkflowContext) {
   const resp: number = yield ctx.callActivity(plsSum, 10, 20);
+  yield ctx.sleep(5000);
   const resp2: number = yield ctx.callActivity(plsSum, 30, 20);
   return resp + resp2;
 };
@@ -32,8 +35,13 @@ const myworkflow = function* (ctx: WorkflowContext) {
 const resp = await runWorkflow(workflowInstanceId, myworkflow);
 console.log(resp);
 console.log(called);
+
+await sleep(5000);
+
 const resp2 = await runWorkflow(workflowInstanceId, myworkflow);
 console.log(resp2);
 console.log(called);
 
-console.log(storage);
+console.log(JSON.stringify(storage.get(workflowInstanceId)));
+
+console.log("RESULT =>", resp2.result);
