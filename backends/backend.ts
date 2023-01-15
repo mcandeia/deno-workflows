@@ -1,9 +1,16 @@
 import { HistoryEvent } from "../events.ts";
 import { PromiseOrValue } from "../promise.ts";
 
+export interface WorkflowInstance<TResult = unknown> {
+  id: string;
+  alias: string;
+  completedAt?: Date;
+  result?: TResult;
+}
 export interface TransactionExecutor {
   add(events: HistoryEvent[]): void;
   addPending(events: HistoryEvent[]): void;
+  setInstance(alias: WorkflowInstance): void;
 }
 
 /**
@@ -20,6 +27,7 @@ export interface Backend {
   withinTransaction<T>(
     instanceId: string,
     exec: (
+      instance: WorkflowInstance | undefined,
       events: HistoryEvent[],
       pendingEvents: HistoryEvent[],
       transactor: TransactionExecutor

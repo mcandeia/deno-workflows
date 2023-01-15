@@ -1,6 +1,6 @@
 import { HistoryEvent } from "../../events.ts";
 import { PromiseOrValue } from "../../promise.ts";
-import { Backend, TransactionExecutor } from "../backend.ts";
+import { Backend, TransactionExecutor, WorkflowInstance } from "../backend.ts";
 import { usePool } from "./connect.ts";
 import {
   queryEvents,
@@ -9,6 +9,7 @@ import {
   toHistoryEvent,
   deleteEvents,
 } from "./events.ts";
+import { getInstance, insertInstance, updateInstance } from "./instance.ts";
 import schema from "./schema.ts";
 import { dbTransaction } from "./transaction.ts";
 
@@ -28,6 +29,7 @@ export function postgre(): Backend {
   const withinTransaction = async function <T>(
     instanceId: string,
     withLock: (
+      instance: WorkflowInstance,
       events: HistoryEvent[],
       pendingEvents: HistoryEvent[],
       executor: TransactionExecutor
@@ -35,13 +37,22 @@ export function postgre(): Backend {
   ): Promise<T> {
     return await dbTransaction(
       async (db) => {
-        const [pendingEvents, history] = await Promise.all([
+        const [
+          pendingEvents,
+          history,
+          {
+            rows: [instance],
+          },
+        ] = await Promise.all([
           db.queryObject<PersistedEvent>(queryPendingEvents(instanceId)),
           db.queryObject<PersistedEvent>(queryHistory(instanceId)),
+          db.queryObject<WorkflowInstance>(getInstance(instanceId)),
         ]);
         const newHistoryEvents: HistoryEvent[] = [];
         const newPendingEvents: HistoryEvent[] = [];
+        let instanceSet: WorkflowInstance | undefined = undefined;
         const result = await withLock(
+          instance,
           history.rows.map(toHistoryEvent),
           pendingEvents.rows.map(toHistoryEvent),
           {
@@ -51,19 +62,29 @@ export function postgre(): Backend {
             addPending: (events: HistoryEvent[]) => {
               newPendingEvents.push.apply(newPendingEvents, events);
             },
+            setInstance: (instance: WorkflowInstance) => {
+              instanceSet = instance;
+            },
           }
         );
+        if (instanceSet !== undefined) {
+          const updateStatement =
+            instance === undefined ? insertInstance : updateInstance;
+          await db.queryObject(updateStatement(instanceId, instanceSet));
+        }
+        const ops: Promise<unknown>[] = [];
         if (newHistoryEvents.length != 0) {
-          await Promise.all([
-            db.queryObject(deletePendingEvents(instanceId, newHistoryEvents)),
-            db.queryObject(insertHistory(instanceId, newHistoryEvents)),
-          ]);
+          ops.push(
+            db.queryObject(deletePendingEvents(instanceId, newHistoryEvents))
+          );
+          ops.push(db.queryObject(insertHistory(instanceId, newHistoryEvents)));
         }
         if (newPendingEvents.length != 0) {
-          await db.queryObject(
-            insertPendingEvents(instanceId, newPendingEvents)
+          ops.push(
+            db.queryObject(insertPendingEvents(instanceId, newPendingEvents))
           );
         }
+        await Promise.all(ops);
         return result;
       },
       `${instanceId}_transaction`,

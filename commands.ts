@@ -2,7 +2,6 @@ import { Activity, WorkflowContext } from "./context.ts";
 import { ActivityStartedEvent, HistoryEvent, newEvent } from "./events.ts";
 import { isAwaitable, PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
-import { randomFloat } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 
 /**
  * The possible command state
@@ -192,9 +191,8 @@ export class ScheduleActivityCommand<
       return [
         startedEvent,
         {
+          ...newEvent(),
           ...eventBase,
-          id: `${randomFloat()}`,
-          timestamp: new Date(),
           type: "activity_completed",
           result,
         },

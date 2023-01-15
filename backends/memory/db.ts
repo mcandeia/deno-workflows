@@ -2,13 +2,15 @@ import { Mutex } from "https://deno.land/x/semaphore@v1.1.1/mod.ts";
 import { HistoryEvent } from "../../events.ts";
 import { PromiseOrValue } from "../../promise.ts";
 import { identity } from "../../utils.ts";
-import { TransactionExecutor } from "../backend.ts";
+import { TransactionExecutor, WorkflowInstance } from "../backend.ts";
 import { Backend } from "../backend.ts";
 
-export const storage = new Map<
-  string,
-  { events: HistoryEvent[]; pendingEvents: HistoryEvent[] }
->();
+interface Instance {
+  events: HistoryEvent[];
+  pendingEvents: HistoryEvent[];
+  instance: WorkflowInstance;
+}
+export const storage = new Map<string, Instance>();
 
 export function inMemoryBackend(): Backend {
   const byInstanceMtx = new Map<string, Mutex>();
@@ -16,6 +18,7 @@ export function inMemoryBackend(): Backend {
   const withinTransaction = async function <T>(
     instanceId: string,
     withLock: (
+      instance: WorkflowInstance,
       events: HistoryEvent[],
       pendingEvents: HistoryEvent[],
       executor: TransactionExecutor
@@ -28,15 +31,21 @@ export function inMemoryBackend(): Backend {
       if (!mtx) {
         mtx = new Mutex();
         byInstanceMtx.set(instanceId, mtx);
-        storage.set(instanceId, { events: [], pendingEvents: [] });
+        storage.set(instanceId, {
+          events: [],
+          pendingEvents: [],
+          instance: { alias: "", id: "" },
+        });
       }
       release();
     }
     const release = await mtx.acquire();
-    const { events, pendingEvents } = storage.get(instanceId) ?? {
+    const { events, pendingEvents, instance } = storage.get(instanceId) ?? {
       events: [],
       pendingEvents: [],
+      instance: { alias: "", id: "" },
     };
+    let currInstance = instance;
     const pendingMap = new Map<string, HistoryEvent>();
     pendingEvents.forEach((event) => {
       pendingMap.set(event.id, event);
@@ -53,8 +62,12 @@ export function inMemoryBackend(): Backend {
           events.push(event);
         });
       },
+      setInstance: function (newInstance: WorkflowInstance) {
+        currInstance = newInstance;
+      },
     };
     const result = await withLock(
+      currInstance,
       events.map(identity),
       pendingEvents.filter(({ visibleAt }) => {
         if (visibleAt) {
@@ -67,6 +80,7 @@ export function inMemoryBackend(): Backend {
     storage.set(instanceId, {
       events,
       pendingEvents: Array.from(pendingMap.values()),
+      instance: currInstance,
     });
     release();
     return result;

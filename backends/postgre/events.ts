@@ -1,4 +1,5 @@
 import { HistoryEvent } from "../../events.ts";
+import { valueOrNull } from "./utils.ts";
 
 export const queryEvents = (
   table: string,
@@ -16,7 +17,7 @@ export const historyEventToValues =
   ({ id, type, timestamp, visibleAt, ...rest }: HistoryEvent): string => {
     return `('${id}', '${instanceId}', '${type}', '${timestamp.toISOString()}', '${JSON.stringify(
       rest
-    )}', ${visibleAt ? "'" + visibleAt.toISOString() + "'" : "NULL"})`;
+    )}', ${valueOrNull(visibleAt?.toISOString())})`;
   };
 
 export const insertEvents =
