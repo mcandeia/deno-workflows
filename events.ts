@@ -2,6 +2,7 @@ import { Command, FinishWorkflowCommand } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
 import { Arg } from "./types.ts";
 import { isNoArgFn } from "./workflow.ts";
+import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 
 /**
  * Event is the base event
@@ -208,3 +209,10 @@ export function apply<TArgs extends Arg = Arg, TResult = unknown>(
     event
   ) as WorkflowState<TArgs, TResult>;
 }
+
+export const newEvent = (): Omit<Event, "type"> => {
+  return {
+    id: v4.generate(),
+    timestamp: new Date(),
+  };
+};

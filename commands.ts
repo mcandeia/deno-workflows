@@ -1,5 +1,5 @@
 import { Activity, WorkflowContext } from "./context.ts";
-import { ActivityStartedEvent, HistoryEvent } from "./events.ts";
+import { ActivityStartedEvent, HistoryEvent, newEvent } from "./events.ts";
 import { isAwaitable, PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
 import { randomFloat } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
@@ -136,14 +136,13 @@ export class SleepCommand extends CommandBase {
     if (!this.isReplaying) {
       return [
         {
+          ...newEvent(),
           type: "timer_scheduled",
-          id: `${this.ctx.random()}`,
-          timestamp: new Date(),
           until: this.until,
         },
         {
+          ...newEvent(),
           type: "timer_fired",
-          id: `${this.ctx.random()}`,
           timestamp: this.until,
           visibleAt: this.until,
         },
@@ -177,8 +176,8 @@ export class ScheduleActivityCommand<
     };
 
     const startedEvent: ActivityStartedEvent<TArgs> = {
+      ...newEvent(),
       ...eventBase,
-      id: `${this.ctx.random()}`,
       timestamp: started,
       activityName: this.activity.name,
       type: "activity_started",
@@ -194,7 +193,7 @@ export class ScheduleActivityCommand<
         startedEvent,
         {
           ...eventBase,
-          id: `${this.ctx.random()}`,
+          id: `${randomFloat()}`,
           timestamp: new Date(),
           type: "activity_completed",
           result,
@@ -204,9 +203,8 @@ export class ScheduleActivityCommand<
       return [
         startedEvent,
         {
+          ...newEvent(),
           ...eventBase,
-          id: `${this.ctx.random()}`,
-          timestamp: new Date(),
           type: "activity_completed",
           exception: error,
         },
@@ -222,9 +220,8 @@ export class FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   run(): PromiseOrValue<HistoryEvent[]> {
     return [
       {
+        ...newEvent(),
         result: this.resp,
-        timestamp: new Date(),
-        id: `${randomFloat()}`,
         type: "workflow_finished",
       },
     ];
@@ -242,9 +239,8 @@ export class StartWorkflowCommand<TArgs extends Arg = Arg> extends CommandBase {
   run(): PromiseOrValue<HistoryEvent[]> {
     return [
       {
+        ...newEvent(),
         input: this.args,
-        timestamp: new Date(),
-        id: `${randomFloat()}`,
         type: "workflow_started",
       },
     ];

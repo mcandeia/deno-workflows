@@ -1,11 +1,11 @@
-import { inMemoryBackend } from "./backends/memory/db.ts";
+import { postgre } from "./backends/postgre/db.ts";
 import { WorkflowContext } from "./context.ts";
 import { apply, HistoryEvent } from "./events.ts";
 import { WorkflowState, zeroState } from "./state.ts";
 import { Arg } from "./types.ts";
 import { Workflow, WorkflowGenFn, WorkflowGen } from "./workflow.ts";
 
-export const backend = inMemoryBackend();
+export const backend = postgre();
 
 export function runWorkflow<TArgs extends Arg = Arg, TResult = unknown>(
   instanceId: string,

@@ -1,3 +1,4 @@
+import { randomInt } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 import { storage } from "../backends/memory/db.ts";
 import { WorkflowContext } from "../context.ts";
 import { backend, runWorkflow } from "../executor.ts";
@@ -14,7 +15,7 @@ async function plsSum(
   return a + b;
 }
 
-const workflowInstanceId = "test";
+const workflowInstanceId = "test" + randomInt(0, 10000000);
 await backend.withinTransaction(workflowInstanceId, (_, __, { addPending }) => {
   addPending([
     {
