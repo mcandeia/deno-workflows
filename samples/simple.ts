@@ -1,9 +1,9 @@
-import { postgre } from "../backends/postgre/db.ts";
+import { postgres } from "../backends/postgres/db.ts";
 import { WorkflowContext } from "../context.ts";
 import { WorkflowService } from "../service/workflow.ts";
 import { sleep } from "../utils.ts";
 
-const backend = postgre();
+const backend = postgres();
 const workflowService = new WorkflowService(backend);
 // any activity
 let called = 0;

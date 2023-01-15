@@ -10,7 +10,7 @@ export interface WorkflowInstance<TResult = unknown> {
 export interface TransactionExecutor {
   add(events: HistoryEvent[]): void;
   addPending(events: HistoryEvent[]): void;
-  setInstance(alias: WorkflowInstance): void;
+  setInstance(instance: WorkflowInstance): void;
 }
 
 /**

@@ -25,7 +25,7 @@ const insertPendingEvents = insertEvents(TABLE_PENDING_EVENTS);
 const insertHistory = insertEvents(TABLE_HISTORY);
 const deletePendingEvents = deleteEvents(TABLE_PENDING_EVENTS);
 
-export function postgre(): Backend {
+export function postgres(): Backend {
   const withinTransaction = async function <T>(
     instanceId: string,
     withLock: (

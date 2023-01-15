@@ -225,7 +225,7 @@ export class FinishWorkflowCommand<TResult = unknown> extends CommandBase {
     ];
   }
   get name(): string {
-    throw "finish_workflow";
+    return "finish_workflow";
   }
 }
 
@@ -244,6 +244,6 @@ export class StartWorkflowCommand<TArgs extends Arg = Arg> extends CommandBase {
     ];
   }
   get name(): string {
-    throw "start_workflow";
+    return "start_workflow";
   }
 }
