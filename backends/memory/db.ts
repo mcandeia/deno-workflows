@@ -22,10 +22,10 @@ export function inMemoryBackend(): Backend {
   const withinTransaction = async function <T>(
     instanceId: string,
     withLock: (
+      executor: TransactionExecutor,
       instance: WorkflowInstance,
       events: HistoryEvent[],
-      pendingEvents: HistoryEvent[],
-      executor: TransactionExecutor
+      pendingEvents: HistoryEvent[]
     ) => PromiseOrValue<T>
   ): Promise<T> {
     let mtx = byInstanceMtx.get(instanceId);
@@ -71,6 +71,7 @@ export function inMemoryBackend(): Backend {
       },
     };
     const result = await withLock(
+      executor,
       currInstance,
       events.map(identity),
       pendingEvents.filter(({ visibleAt }) => {
@@ -78,8 +79,7 @@ export function inMemoryBackend(): Backend {
           return visibleAt.getTime() <= Date.now();
         }
         return true;
-      }),
-      executor
+      })
     );
     storage.set(instanceId, {
       events,

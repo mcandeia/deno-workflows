@@ -45,7 +45,7 @@ export interface WorkItem<T, TResult = unknown> {
   onError: (err: unknown) => void;
 }
 /**
- * Start workers based on the specified count or defaults to 1.
+ * Start workers based on the specified count (or defaults to 1) in a producer-consumer fashion.
  * The workers are responsible for producing and consuming the data based on the generator function.
  * At least two async routines are started when this function gets invoked.
  * `count` routines for consuming the messages and one routine for producing messages.

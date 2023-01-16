@@ -56,7 +56,7 @@ export class WorkflowService {
   ): Promise<void> {
     return await this.backend.withinTransaction(
       instanceId,
-      (_, __, ___, { addPending }) => {
+      ({ addPending }) => {
         addPending([
           {
             ...newEvent(),
@@ -81,7 +81,7 @@ export class WorkflowService {
     const wkflowInstanceId = instanceId ?? v4.generate();
     return await this.backend.withinTransaction(
       wkflowInstanceId,
-      (_, __, ___, { addPending, setInstance }) => {
+      ({ addPending, setInstance }) => {
         const instance = { alias, id: wkflowInstanceId };
         setInstance(instance);
         addPending([
@@ -105,10 +105,10 @@ export class WorkflowService {
     return await this.backend.withinTransaction(
       instanceId,
       async (
+        { addPending, add, setInstance },
         maybeInstance,
         events,
-        pendingEvents: HistoryEvent[],
-        { addPending, add, setInstance }
+        pendingEvents: HistoryEvent[]
       ) => {
         if (maybeInstance === undefined) {
           throw new Error("workflow not found");

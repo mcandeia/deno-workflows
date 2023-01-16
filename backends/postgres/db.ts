@@ -84,10 +84,10 @@ export function postgres(): Backend {
   const withinTransaction = async function <T>(
     instanceId: string,
     withLock: (
+      executor: TransactionExecutor,
       instance: WorkflowInstance,
       events: HistoryEvent[],
-      pendingEvents: HistoryEvent[],
-      executor: TransactionExecutor
+      pendingEvents: HistoryEvent[]
     ) => PromiseOrValue<T>
   ): Promise<T> {
     return await dbTransaction(
@@ -107,9 +107,6 @@ export function postgres(): Backend {
         const newPendingEvents: HistoryEvent[] = [];
         let instanceSet: WorkflowInstance | undefined = undefined;
         const result = await withLock(
-          instance,
-          history.rows.map(toHistoryEvent),
-          pendingEvents.rows.map(toHistoryEvent),
           {
             add: (events: HistoryEvent[]) => {
               newHistoryEvents.push.apply(newHistoryEvents, events);
@@ -120,7 +117,10 @@ export function postgres(): Backend {
             setInstance: (instance: WorkflowInstance) => {
               instanceSet = instance;
             },
-          }
+          },
+          instance,
+          history.rows.map(toHistoryEvent),
+          pendingEvents.rows.map(toHistoryEvent)
         );
         if (instanceSet !== undefined) {
           const updateStatement =

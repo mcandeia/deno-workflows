@@ -43,10 +43,10 @@ export interface Backend {
   withinTransaction<T>(
     instanceId: string,
     exec: (
+      transactor: TransactionExecutor,
       instance: WorkflowInstance | undefined,
       events: HistoryEvent[],
-      pendingEvents: HistoryEvent[],
-      transactor: TransactionExecutor
+      pendingEvents: HistoryEvent[]
     ) => PromiseOrValue<T>
   ): Promise<T>;
 }
