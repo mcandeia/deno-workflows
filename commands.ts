@@ -184,7 +184,7 @@ export class ScheduleActivityCommand<
     };
 
     try {
-      const activityResult = this.activity(this.ctx, ...this.input);
+      const activityResult = this.activity(...this.input);
       const result = isAwaitable(activityResult)
         ? await activityResult
         : activityResult;
@@ -208,6 +208,27 @@ export class ScheduleActivityCommand<
         },
       ];
     }
+  }
+}
+
+export class WaitForSignalCommand extends CommandBase {
+  constructor(private signal: string) {
+    super();
+  }
+  run(): PromiseOrValue<HistoryEvent[]> {
+    if (this.isReplaying) {
+      return [];
+    }
+    return [
+      {
+        ...newEvent(),
+        type: "waiting_signal",
+        signal: this.signal,
+      },
+    ];
+  }
+  get name(): string {
+    return "wait_signal";
   }
 }
 

@@ -6,7 +6,7 @@ export const queryEvents = (
   includeVisibleAt?: boolean
 ): ((instanceId: string) => string) => {
   const visibleAtClause = includeVisibleAt
-    ? " AND (visible_at is NULL OR visible_at < now())"
+    ? " AND (visible_at is NULL OR visible_at <= now())"
     : "";
   return (instanceId: string) =>
     `SELECT id, type, timestamp, visible_at visibleAt, attributes FROM ${table} WHERE instance_id='${instanceId}'${visibleAtClause}`;

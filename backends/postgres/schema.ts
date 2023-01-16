@@ -4,9 +4,11 @@ CREATE TABLE IF NOT EXISTS instances (
     alias TEXT NOT NULL,
     completed_at TIMESTAMP NULL,
     result JSON NULL,
+    locked_until TIMESTAMP NULL,
     PRIMARY KEY(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_instances_locked_until_completed_at ON instances (locked_until, completed_at);
 CREATE INDEX IF NOT EXISTS idx_instance_aliases ON instances (alias);
 
 CREATE TABLE IF NOT EXISTS pending_events (

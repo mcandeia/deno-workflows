@@ -16,6 +16,7 @@ export interface WorkflowState<TArgs extends Arg = Arg, TResult = unknown> {
   finishedAt?: Date;
   cancelledAt?: Date;
   generatorFn?: WorkflowGen<TResult>;
+  signals: Record<string, WorkflowGen<TResult> | undefined>;
 }
 
 /**
@@ -28,6 +29,7 @@ export function zeroState<TArgs extends Arg = Arg, TResult = unknown>(
 ): WorkflowState<TArgs, TResult> {
   return {
     current: new NoOpCommand(),
+    signals: {},
     workflowFn,
   };
 }

@@ -2,7 +2,11 @@ import { Mutex } from "https://deno.land/x/semaphore@v1.1.1/mod.ts";
 import { HistoryEvent } from "../../events.ts";
 import { PromiseOrValue } from "../../promise.ts";
 import { identity } from "../../utils.ts";
-import { TransactionExecutor, WorkflowInstance } from "../backend.ts";
+import {
+  HandlerOpts,
+  TransactionExecutor,
+  WorkflowInstance,
+} from "../backend.ts";
 import { Backend } from "../backend.ts";
 
 interface Instance {
@@ -86,6 +90,12 @@ export function inMemoryBackend(): Backend {
     return result;
   };
   return {
+    onPendingEvent: (
+      _: (instanceId: string) => Promise<void>,
+      __?: HandlerOpts
+    ) => {
+      throw new Error("not implemented");
+    },
     withinTransaction,
   };
 }

@@ -73,6 +73,19 @@ export interface ActivityCompletedEvent<TResult = unknown> extends Event {
 }
 
 /**
+ * WaitingSignalEvent is used to indicate that the state is waiting for signal to proceed.
+ */
+export interface WaitingSignalEvent extends Event {
+  signal: string;
+  type: "waiting_signal";
+}
+
+export interface SignalReceivedEvent extends Event {
+  type: "signal_received";
+  signal: string;
+  payload?: unknown;
+}
+/**
  * All possible types of events.
  */
 export type HistoryEvent =
@@ -82,7 +95,9 @@ export type HistoryEvent =
   | ActivityStartedEvent
   | ActivityCompletedEvent
   | TimerScheduledEvent
-  | TimerFiredEvent;
+  | TimerFiredEvent
+  | WaitingSignalEvent
+  | SignalReceivedEvent;
 
 type EventHandler<TEvent extends HistoryEvent = HistoryEvent> = (
   state: WorkflowState,
@@ -101,6 +116,38 @@ export const no_op = function <TArgs extends Arg = Arg, TResult = unknown>(
   _: HistoryEvent
 ): WorkflowState<TArgs, TResult> {
   return state;
+};
+
+export const waiting_signal = function <
+  TArgs extends Arg = Arg,
+  TResult = unknown
+>(
+  state: WorkflowState<TArgs, TResult>,
+  { signal }: WaitingSignalEvent
+): WorkflowState<TArgs, TResult> {
+  state.current.isReplaying = true;
+  return {
+    ...state,
+    signals: { [signal]: state.generatorFn! },
+  };
+};
+
+export const signal_received = function <
+  TArgs extends Arg = Arg,
+  TResult = unknown
+>(
+  state: WorkflowState<TArgs, TResult>,
+  { signal, payload }: SignalReceivedEvent
+): WorkflowState<TArgs, TResult> {
+  const signalFn = state.signals[signal];
+  if (signalFn === undefined) {
+    return state;
+  }
+  return {
+    ...state,
+    signals: { [signal]: undefined },
+    current: next(signalFn.next(payload)),
+  };
 };
 
 const timer_scheduled = function <TArgs extends Arg = Arg, TResult = unknown>(
@@ -136,9 +183,9 @@ const activity_completed = function <
   { exception, result }: ActivityCompletedEvent<TResult>
 ): WorkflowState<TArgs, TResult> {
   try {
-    const genResult = result
-      ? state.generatorFn!.next(result)
-      : state.generatorFn!.throw(exception);
+    const genResult = exception
+      ? state.generatorFn!.throw(exception)
+      : state.generatorFn!.next(result);
     return { ...state, current: next(genResult) };
   } catch (err) {
     return { ...state, exception: err, hasFinished: true };
@@ -149,7 +196,7 @@ const activity_started = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
   _: ActivityStartedEvent<TArgs>
 ): WorkflowState<TArgs, TResult> {
-  state.current.isReplaying = true;
+  state.current.isReplaying = true; // TODO check if this event comes from current command by comparing ids.
   return state;
 };
 
@@ -198,6 +245,8 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   workflow_started,
   timer_scheduled,
   timer_fired,
+  waiting_signal,
+  signal_received,
 };
 
 export function apply<TArgs extends Arg = Arg, TResult = unknown>(

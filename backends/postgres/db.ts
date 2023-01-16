@@ -1,6 +1,12 @@
 import { HistoryEvent } from "../../events.ts";
 import { PromiseOrValue } from "../../promise.ts";
-import { Backend, TransactionExecutor, WorkflowInstance } from "../backend.ts";
+import { startWorkers, WorkItem } from "../../worker/starter.ts";
+import {
+  Backend,
+  HandlerOpts,
+  TransactionExecutor,
+  WorkflowInstance,
+} from "../backend.ts";
 import { usePool } from "./connect.ts";
 import {
   queryEvents,
@@ -9,9 +15,18 @@ import {
   toHistoryEvent,
   deleteEvents,
 } from "./events.ts";
-import { getInstance, insertInstance, updateInstance } from "./instance.ts";
+import {
+  getInstance,
+  insertInstance,
+  pendingInstances,
+  unlockInstance,
+  updateInstance,
+} from "./instances.ts";
 import schema from "./schema.ts";
 import { dbTransaction } from "./transaction.ts";
+import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { delay } from "https://deno.land/std@0.160.0/async/delay.ts";
+import { tryParseInt } from "../../utils.ts";
 
 await usePool((client) => {
   return client.queryObject(schema);
@@ -24,6 +39,46 @@ const queryHistory = queryEvents(TABLE_HISTORY);
 const insertPendingEvents = insertEvents(TABLE_PENDING_EVENTS);
 const insertHistory = insertEvents(TABLE_HISTORY);
 const deletePendingEvents = deleteEvents(TABLE_PENDING_EVENTS);
+
+const DELAY_WHEN_NO_PENDING_EVENTS_MS =
+  tryParseInt(Deno.env.get("PG_INTERVAL_EMPTY_EVENTS")) ?? 5_000;
+
+async function* instancesGenerator(
+  cancellation: Event
+): AsyncGenerator<WorkItem<string>, void, unknown> {
+  return yield* await usePool(async function* (
+    client
+  ): AsyncGenerator<WorkItem<string>, void, unknown> {
+    const unlockWkflowInstance = (instanceId: string) => () => {
+      client.queryObject(unlockInstance(instanceId));
+    };
+    while (!cancellation.is_set()) {
+      const instanceIds = await Promise.race([
+        client
+          .queryObject<{ id: string }>(pendingInstances)
+          .then((r) => r.rows.map((instance) => instance.id)),
+        cancellation.wait(),
+      ]);
+
+      if (instanceIds == true) {
+        break;
+      }
+
+      if (instanceIds.length == 0) {
+        await delay(DELAY_WHEN_NO_PENDING_EVENTS_MS);
+      }
+
+      for (const item of instanceIds) {
+        const doUnlock = unlockWkflowInstance(item);
+        yield {
+          item,
+          onError: doUnlock,
+          onSuccess: doUnlock,
+        };
+      }
+    }
+  });
+}
 
 export function postgres(): Backend {
   const withinTransaction = async function <T>(
@@ -87,9 +142,21 @@ export function postgres(): Backend {
         await Promise.all(ops);
         return result;
       },
-      `${instanceId}_transaction`,
+      `${instanceId}_transaction`, // TODO should be unique and used on tracing
       { isolation_level: "repeatable_read" }
     );
   };
-  return { withinTransaction };
+  return {
+    withinTransaction,
+    onPendingEvent: (
+      handler: (instanceId: string) => Promise<void>,
+      options?: HandlerOpts
+    ) => {
+      startWorkers(
+        handler,
+        instancesGenerator(options?.cancellation ?? new Event()),
+        options?.concurrency
+      );
+    },
+  };
 }

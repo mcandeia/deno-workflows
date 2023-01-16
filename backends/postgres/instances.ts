@@ -1,3 +1,4 @@
+import { tryParseInt } from "../../utils.ts";
 import { WorkflowInstance } from "../backend.ts";
 import { valueOrNull } from "./utils.ts";
 
@@ -25,3 +26,27 @@ export const updateInstance = (
 export const getInstance = (instanceId: string): string => {
   return `SELECT id, alias, completed_at completedAt, result FROM ${TABLE_INSTANCES} WHERE id='${instanceId}'`;
 };
+
+const MAX_LOCK_MINUTES =
+  tryParseInt(Deno.env.get("WORKERS_LOCK_MINUTES")) ?? 10;
+
+export const unlockInstance = (instanceId: string): string => {
+  return `UPDATE instances SET locked_until = NULL WHERE id='${instanceId}'`;
+};
+
+export const pendingInstances = `
+UPDATE instances
+SET locked_until = now()::timestamp + interval '${MAX_LOCK_MINUTES} minutes'
+WHERE ctid = (
+  SELECT ctid FROM instances i
+    WHERE
+      (locked_until IS NULL OR locked_until < now())
+      AND completed_at IS NULL
+      AND EXISTS (
+        SELECT 1
+          FROM pending_events
+          WHERE instance_id = i.id AND (visible_at IS NULL OR visible_at <= now())
+      )
+    LIMIT 1
+) RETURNING id
+`;
