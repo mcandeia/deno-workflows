@@ -5,7 +5,7 @@ function isWorkItem<T, TResult>(
 ): v is WorkItem<T, TResult> {
   return (v as WorkItem<T, TResult>).item !== "undefined";
 }
-const noop = () => {};
+const noop = async () => {};
 
 const consumerFor = async <T, TResult>(
   q: Queue<WorkItem<T, TResult>>,
@@ -41,8 +41,8 @@ const producerFor = async <T, TResult>(
 
 export interface WorkItem<T, TResult = unknown> {
   item: T;
-  onSuccess: (r: TResult) => void;
-  onError: (err: unknown) => void;
+  onSuccess: (r: TResult) => Promise<void>;
+  onError: (err: unknown) => Promise<void>;
 }
 /**
  * Start workers based on the specified count (or defaults to 1) in a producer-consumer fashion.

@@ -1,10 +1,15 @@
-import { Backend, HandlerOpts, WorkflowInstance } from "../backends/backend.ts";
+import { HandlerOpts, WorkflowInstance } from "../backends/backend.ts";
+import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
 import { WorkflowContext } from "../context.ts";
 import { HistoryEvent, apply, newEvent } from "../events.ts";
 import { WorkflowState, zeroState } from "../state.ts";
 import { Arg } from "../types.ts";
 import { Workflow, WorkflowGen, WorkflowGenFn } from "../workflow.ts";
 import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
+import { DB } from "../backends/backend.ts";
+import { delay } from "https://deno.land/std@0.160.0/async/delay.ts";
+import { startWorkers, WorkItem } from "../worker/starter.ts";
+import { tryParseInt } from "../utils.ts";
 
 /**
  * WorkflowCreationOptions is used for creating workflows of a given instanceId.
@@ -14,9 +19,43 @@ export interface WorkflowCreationOptions {
   alias: string;
 }
 
+const MAX_LOCK_MINUTES =
+  tryParseInt(Deno.env.get("WORKERS_LOCK_MINUTES")) ?? 10;
+
+const DELAY_WHEN_NO_PENDING_EVENTS_MS =
+  tryParseInt(Deno.env.get("PG_INTERVAL_EMPTY_EVENTS")) ?? 5_000;
+
+async function* instancesGenerator(
+  db: DB,
+  cancellation: Event
+): AsyncGenerator<WorkItem<string>, void, unknown> {
+  while (!cancellation.is_set()) {
+    const instanceIds = await Promise.race([
+      db.pendingExecutions(MAX_LOCK_MINUTES),
+      cancellation.wait(),
+    ]);
+
+    if (instanceIds == true) {
+      break;
+    }
+
+    if (instanceIds.length == 0) {
+      await delay(DELAY_WHEN_NO_PENDING_EVENTS_MS);
+    }
+
+    for (const { instance: item, unlock } of instanceIds) {
+      yield {
+        item,
+        onError: unlock,
+        onSuccess: unlock,
+      };
+    }
+  }
+}
+
 export class WorkflowService {
   protected registry: Map<string, Workflow>;
-  constructor(protected backend: Backend) {
+  constructor(protected backend: DB) {
     this.registry = new Map();
   }
 
@@ -24,11 +63,12 @@ export class WorkflowService {
    * start the background workers.
    */
   public startWorkers(opts?: HandlerOpts) {
-    this.backend.onPendingEvent(
+    startWorkers(
       (async (instanceId: string) => {
         await this.runWorkflow(instanceId);
       }).bind(this),
-      opts
+      instancesGenerator(this.backend, opts?.cancellation ?? new Event()),
+      opts?.concurrency ?? 1
     );
   }
 
@@ -54,19 +94,12 @@ export class WorkflowService {
     signal: string,
     payload?: unknown
   ): Promise<void> {
-    return await this.backend.withinTransaction(
-      instanceId,
-      ({ addPending }) => {
-        addPending([
-          {
-            ...newEvent(),
-            type: "signal_received",
-            signal,
-            payload,
-          },
-        ]);
-      }
-    );
+    await this.backend.instance(instanceId).pending.add({
+      ...newEvent(),
+      type: "signal_received",
+      signal,
+      payload,
+    });
   }
 
   /**
@@ -79,21 +112,17 @@ export class WorkflowService {
     input?: [...TArgs]
   ): Promise<WorkflowInstance> {
     const wkflowInstanceId = instanceId ?? v4.generate();
-    return await this.backend.withinTransaction(
-      wkflowInstanceId,
-      ({ addPending, setInstance }) => {
-        const instance = { alias, id: wkflowInstanceId };
-        setInstance(instance);
-        addPending([
-          {
-            ...newEvent(),
-            type: "workflow_started",
-            input,
-          },
-        ]);
-        return { alias, id: wkflowInstanceId };
-      }
-    );
+    return await this.backend.withinTransaction(async (db) => {
+      const instance = { alias, id: wkflowInstanceId };
+      const instancesDB = db.instance(wkflowInstanceId);
+      await instancesDB.create(instance); // cannot be parallelized
+      await instancesDB.pending.add({
+        ...newEvent(),
+        type: "workflow_started",
+        input,
+      });
+      return instance;
+    });
   }
 
   /**
@@ -102,67 +131,82 @@ export class WorkflowService {
   public async runWorkflow<TArgs extends Arg = Arg, TResult = unknown>(
     instanceId: string
   ): Promise<WorkflowState<TArgs, TResult>> {
-    return await this.backend.withinTransaction(
-      instanceId,
-      async (
-        { addPending, add, setInstance },
-        maybeInstance,
-        events,
-        pendingEvents: HistoryEvent[]
-      ) => {
-        if (maybeInstance === undefined) {
-          throw new Error("workflow not found");
-        }
-        const workflow = maybeInstance
-          ? (this.registry.get(maybeInstance.alias) as
-              | Workflow<TArgs, TResult>
-              | undefined)
-          : undefined;
-        if (workflow === undefined) {
-          throw new Error("workflow not found");
-        }
-        const ctx = new WorkflowContext(instanceId);
-        const workflowFn: WorkflowGenFn<TArgs, TResult> = (
-          ...args: [...TArgs]
-        ): WorkflowGen<TResult> => {
-          return workflow(ctx, ...args);
-        };
-
-        let state: WorkflowState<TArgs, TResult> = [
-          ...events,
-          ...pendingEvents,
-        ].reduce(apply, zeroState(workflowFn));
-
-        add(pendingEvents);
-
-        // this should be done by a command handler executor in background.
-        while (
-          !(
-            state.hasFinished ||
-            state.cancelledAt !== undefined ||
-            state.current.isCompleted
-          )
-        ) {
-          const newEvents = await state.current.run();
-          state.current.changeState("Completed");
-          newEvents.forEach((event) => {
-            if (event.visibleAt) {
-              addPending([event]);
-            } else {
-              state = apply(state, event);
-              add([event]);
-            }
-          });
-        }
-        if (state.hasFinished) {
-          setInstance({
-            ...maybeInstance,
-            result: state.result ?? state.exception,
-            completedAt: new Date(),
-          });
-        }
-        return state;
+    return await this.backend.withinTransaction(async (db) => {
+      const instanceDB = db.instance(instanceId);
+      const maybeInstance = await instanceDB.get();
+      if (maybeInstance === undefined) {
+        throw new Error("workflow not found");
       }
-    );
+      const workflow = maybeInstance
+        ? (this.registry.get(maybeInstance.alias) as
+            | Workflow<TArgs, TResult>
+            | undefined)
+        : undefined;
+      if (workflow === undefined) {
+        throw new Error("workflow not found");
+      }
+
+      const [events, pendingEvents] = await Promise.all([
+        instanceDB.history.get(),
+        instanceDB.pending.get(true),
+      ]);
+      const ctx = new WorkflowContext(instanceId);
+      const workflowFn: WorkflowGenFn<TArgs, TResult> = (
+        ...args: [...TArgs]
+      ): WorkflowGen<TResult> => {
+        return workflow(ctx, ...args);
+      };
+
+      let state: WorkflowState<TArgs, TResult> = [
+        ...events,
+        ...pendingEvents,
+      ].reduce(apply, zeroState(workflowFn));
+
+      await Promise.all([
+        instanceDB.history.add(...pendingEvents),
+        instanceDB.pending.del(...pendingEvents),
+      ]);
+
+      const newPending: HistoryEvent[] = [];
+      const history: HistoryEvent[] = [];
+      // this should be done by a command handler executor in background.
+      while (
+        !(
+          state.hasFinished ||
+          state.cancelledAt !== undefined ||
+          state.current.isCompleted
+        )
+      ) {
+        const newEvents = await state.current.run();
+        state.current.changeState("Completed");
+        newEvents.forEach((event) => {
+          if (event.visibleAt) {
+            newPending.push(event);
+          } else {
+            state = apply(state, event);
+            history.push(event);
+          }
+        });
+      }
+      if (state.hasFinished) {
+        await instanceDB.update({
+          ...maybeInstance,
+          result: state.result ?? state.exception,
+          completedAt: new Date(),
+        });
+      }
+
+      const historyPromise =
+        history.length === 0
+          ? Promise.resolve()
+          : instanceDB.history.add(...history);
+      const pendingEventsPromise =
+        newPending.length === 0
+          ? Promise.resolve()
+          : instanceDB.pending.add(...newPending);
+
+      await Promise.all([historyPromise, pendingEventsPromise]);
+      return state;
+    });
   }
 }
