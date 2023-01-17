@@ -6,10 +6,11 @@ import { delay } from "https://deno.land/std@0.160.0/async/delay.ts";
 
 const backend = postgres();
 const workflowService = new WorkflowService(backend);
+
+const orderCreated = new Event();
+
 // any activity
-let called = 0;
 async function plsSum(a: number, b: number): Promise<number> {
-  called++;
   await delay(1000);
   return a + b;
 }
@@ -32,6 +33,7 @@ interface Order extends OrderForm {
 async function createOrder(form: OrderForm): Promise<void> {
   console.log("Received orderForm", form);
   await delay(5000); // faking some delay
+  orderCreated.set();
 }
 const createOrderWorkflow = function* (
   ctx: WorkflowContext,
@@ -41,6 +43,7 @@ const createOrderWorkflow = function* (
   const orderCreated: Order = yield ctx.waitForSignal("order_created");
   return orderCreated.id;
 };
+
 // workflow register
 workflowService.registerWorkflow(sumWithDelayWorkflow);
 workflowService.registerWorkflow(createOrderWorkflow);
@@ -62,7 +65,7 @@ for (let i = 0; i < 30; i++) {
         [orderForm]
       )
       .then(async ({ id }) => {
-        await delay(10_000);
+        await orderCreated.wait();
         await workflowService.signalWorkflow(id, "order_created", {
           ...orderForm,
           id: mId,
