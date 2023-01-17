@@ -48,20 +48,31 @@ const cancellation = new Event();
 workflowService.startWorkers({ cancellation, concurrency: 10 });
 
 const orderForm = { items: ["soap", "shirt"] };
-// running workflows
-const { id } = await workflowService.startWorkflow(
-  {
-    alias: createOrderWorkflow.name,
-  },
-  [orderForm]
-);
 
+const promises = [];
+for (let i = 0; i < 30; i++) {
+  const mId = i;
+  promises.push(
+    workflowService
+      .startWorkflow(
+        {
+          alias: createOrderWorkflow.name,
+          instanceId: `${i}`,
+        },
+        [orderForm]
+      )
+      .then(async ({ id }) => {
+        await delay(10_000);
+        await workflowService.signalWorkflow(id, "order_created", {
+          ...orderForm,
+          id: mId,
+        });
+      })
+  );
+}
+// running workflows
+await Promise.all(promises);
 console.log("waiting 10 seconds");
-await delay(10_000);
-await workflowService.signalWorkflow(id, "order_created", {
-  ...orderForm,
-  id: "100",
-});
 
 // await sleep(8000);
 
@@ -70,4 +81,4 @@ await workflowService.signalWorkflow(id, "order_created", {
 // console.log(called);
 
 // console.log("RESULT =>", resp.result);
-await delay(100000);
+await delay(100_000);

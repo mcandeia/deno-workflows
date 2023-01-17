@@ -38,8 +38,12 @@ export interface DB {
   /**
    * PendingExecutions returns all workflow instance that has pending events and lock all of them using the specified lock time.
    * @param lockTimeMS is the time that the workflow instance should be locked
+   * @param limit limit the query result.
    */
-  pendingExecutions(lockTimeMS: number): Promise<PendingExecution[]>;
+  pendingExecutions(
+    lockTimeMS: number,
+    limit: number
+  ): Promise<PendingExecution[]>;
   /**
    * withintransaction executes commands inside a transaction providing the ACID guarantees
    * if the executor function returns an exception, the transaction should be rolled back, otherwise it should commit all changes atomically.

@@ -1,5 +1,5 @@
 import { HandlerOpts, WorkflowInstance } from "../backends/backend.ts";
-import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
 import { WorkflowContext } from "../context.ts";
 import { HistoryEvent, apply, newEvent } from "../events.ts";
 import { WorkflowState, zeroState } from "../state.ts";
@@ -27,11 +27,20 @@ const DELAY_WHEN_NO_PENDING_EVENTS_MS =
 
 async function* instancesGenerator(
   db: DB,
+  freeWorkers: () => number,
   cancellation: Event
 ): AsyncGenerator<WorkItem<string>, void, unknown> {
   while (!cancellation.is_set()) {
+    const limit = freeWorkers();
+    if (limit === 0) {
+      await Promise.race([
+        delay(DELAY_WHEN_NO_PENDING_EVENTS_MS),
+        cancellation.wait(),
+      ]);
+      continue;
+    }
     const instanceIds = await Promise.race([
-      db.pendingExecutions(MAX_LOCK_MINUTES),
+      db.pendingExecutions(MAX_LOCK_MINUTES, limit),
       cancellation.wait(),
     ]);
 
@@ -40,7 +49,11 @@ async function* instancesGenerator(
     }
 
     if (instanceIds.length == 0) {
-      await delay(DELAY_WHEN_NO_PENDING_EVENTS_MS);
+      await Promise.race([
+        delay(DELAY_WHEN_NO_PENDING_EVENTS_MS),
+        cancellation.wait(),
+      ]);
+      continue;
     }
 
     for (const { instance: item, unlock } of instanceIds) {
@@ -63,12 +76,19 @@ export class WorkflowService {
    * start the background workers.
    */
   public startWorkers(opts?: HandlerOpts) {
+    const workerCount = opts?.concurrency ?? 1;
+    const q = new Queue<WorkItem<string>>(workerCount);
     startWorkers(
       (async (instanceId: string) => {
         await this.runWorkflow(instanceId);
       }).bind(this),
-      instancesGenerator(this.backend, opts?.cancellation ?? new Event()),
-      opts?.concurrency ?? 1
+      instancesGenerator(
+        this.backend,
+        () => workerCount - q.qsize(),
+        opts?.cancellation ?? new Event()
+      ),
+      workerCount,
+      q
     );
   }
 

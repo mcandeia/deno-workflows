@@ -8,6 +8,7 @@ function isWorkItem<T, TResult>(
 const noop = async () => {};
 
 const consumerFor = async <T, TResult>(
+  workerNum: number,
   q: Queue<WorkItem<T, TResult>>,
   closed: Event,
   handler: (s: T) => Promise<TResult>
@@ -17,6 +18,7 @@ const consumerFor = async <T, TResult>(
     if (recv === true) {
       break;
     }
+    console.log(`worker[${workerNum}]: ${recv.item}`);
     await handler(recv.item).then(recv.onSuccess).catch(recv.onError);
   }
 };
@@ -50,16 +52,19 @@ export interface WorkItem<T, TResult = unknown> {
  * At least two async routines are started when this function gets invoked.
  * `count` routines for consuming the messages and one routine for producing messages.
  * the cancellation will be called as soon as the generator function returns.
+ * it returns the
  */
 export const startWorkers = <T, TResult>(
   handler: (s: T) => Promise<TResult>,
   generator: AsyncGenerator<T | WorkItem<T, TResult>, unknown, TResult>,
-  count?: number
+  count: number,
+  queue?: Queue<WorkItem<T, TResult>>
 ) => {
-  const q = new Queue<WorkItem<T, TResult>>(count ?? 1);
+  const q = queue ?? new Queue<WorkItem<T, TResult>>(count);
   const closed = new Event();
-  const workers = new Array<() => Promise<void>>(count ?? 1)
-    .fill(() => consumerFor(q, closed, handler))
+  let n = 0;
+  const workers = new Array<() => Promise<void>>(count)
+    .fill(() => consumerFor(n++, q, closed, handler))
     .map((f) => f());
   const producer = producerFor(q, closed, generator);
   Promise.all([...workers, producer]);

@@ -111,13 +111,14 @@ function dbFor(useClient: UseClient): DB {
       });
     },
     pendingExecutions: async (
-      lockTimeoutM: number
+      lockTimeoutMS: number,
+      limit: number
     ): Promise<PendingExecution[]> => {
       return await useClient<PendingExecution[]>(async (client) => {
         return await client
-          .queryObject<{ id: string }>(pendingInstances(lockTimeoutM))
-          .then((r) =>
-            r.rows.map(({ id: instance }) => ({
+          .queryObject<{ id: string }>(pendingInstances(lockTimeoutMS, limit))
+          .then(({ rows }) =>
+            rows.map(({ id: instance }) => ({
               instance,
               unlock: unlockWkflowInstance(instance),
             }))

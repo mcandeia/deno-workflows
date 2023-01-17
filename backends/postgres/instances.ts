@@ -30,10 +30,10 @@ export const unlockInstance = (instanceId: string): string => {
   return `UPDATE instances SET locked_until = NULL WHERE id='${instanceId}'`;
 };
 
-export const pendingInstances = (lockInMinutes: number) => `
+export const pendingInstances = (lockInMinutes: number, limit: number) => `
 UPDATE instances
 SET locked_until = now()::timestamp + interval '${lockInMinutes} minutes'
-WHERE ctid = (
+WHERE ctid IN (
   SELECT ctid FROM instances i
     WHERE
       (locked_until IS NULL OR locked_until < now())
@@ -43,6 +43,6 @@ WHERE ctid = (
           FROM pending_events
           WHERE instance_id = i.id AND (visible_at IS NULL OR visible_at <= now())
       )
-    LIMIT 1
+    LIMIT ${limit}
 ) RETURNING id
 `;
