@@ -1,47 +1,87 @@
-import { storage } from "../backends/memory/db.ts";
+import { postgres } from "../backends/postgres/db.ts";
 import { WorkflowContext } from "../context.ts";
-import { backend, runWorkflow } from "../executor.ts";
-import { sleep } from "../utils.ts";
+import { WorkflowService } from "../service/workflow.ts";
+import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { delay } from "https://deno.land/std@0.160.0/async/delay.ts";
 
-let called = 0;
-async function plsSum(
-  _: WorkflowContext,
-  a: number,
-  b: number
-): Promise<number> {
-  called++;
-  await sleep(1000);
+const backend = postgres();
+const workflowService = new WorkflowService(backend);
+
+const orderCreated = new Event();
+
+// any activity
+async function plsSum(a: number, b: number): Promise<number> {
+  await delay(1000);
   return a + b;
 }
 
-const workflowInstanceId = "test";
-await backend.withinTransaction(workflowInstanceId, (_, __, { addPending }) => {
-  addPending([
-    {
-      id: workflowInstanceId,
-      timestamp: new Date(),
-      type: "workflow_started",
-    },
-  ]);
-});
-
-const myworkflow = function* (ctx: WorkflowContext) {
+// workflow definition
+const sumWithDelayWorkflow = function* (ctx: WorkflowContext) {
   const resp: number = yield ctx.callActivity(plsSum, 10, 20);
   yield ctx.sleep(5000);
   const resp2: number = yield ctx.callActivity(plsSum, 30, 20);
   return resp + resp2;
 };
+// create order workflow
 
-const resp = await runWorkflow(workflowInstanceId, myworkflow);
-console.log(resp);
-console.log(called);
+interface OrderForm {
+  items: string[];
+}
+interface Order extends OrderForm {
+  id: string;
+}
+async function createOrder(form: OrderForm): Promise<void> {
+  console.log("Received orderForm", form);
+  await delay(5000); // faking some delay
+  orderCreated.set();
+}
+const createOrderWorkflow = function* (
+  ctx: WorkflowContext,
+  orderForm: OrderForm
+) {
+  yield ctx.callActivity(createOrder, orderForm);
+  const orderCreated: Order = yield ctx.waitForSignal("order_created");
+  return orderCreated.id;
+};
 
-await sleep(5000);
+// workflow register
+workflowService.registerWorkflow(sumWithDelayWorkflow);
+workflowService.registerWorkflow(createOrderWorkflow);
+const cancellation = new Event();
+workflowService.startWorkers({ cancellation, concurrency: 10 });
 
-const resp2 = await runWorkflow(workflowInstanceId, myworkflow);
-console.log(resp2);
-console.log(called);
+const orderForm = { items: ["soap", "shirt"] };
 
-console.log(JSON.stringify(storage.get(workflowInstanceId)));
+const promises = [];
+for (let i = 0; i < 30; i++) {
+  const mId = i;
+  promises.push(
+    workflowService
+      .startWorkflow(
+        {
+          alias: createOrderWorkflow.name,
+          instanceId: `${i}`,
+        },
+        [orderForm]
+      )
+      .then(async ({ id }) => {
+        await orderCreated.wait();
+        await workflowService.signalWorkflow(id, "order_created", {
+          ...orderForm,
+          id: mId,
+        });
+      })
+  );
+}
+// running workflows
+await Promise.all(promises);
+console.log("waiting 10 seconds");
 
-console.log("RESULT =>", resp2.result);
+// await sleep(8000);
+
+// const resp = await workflowService.runWorkflow(id);
+// console.log(resp);
+// console.log(called);
+
+// console.log("RESULT =>", resp.result);
+await delay(100_000);

@@ -2,6 +2,9 @@ import { Command } from "./commands.ts";
 import { WorkflowContext } from "./context.ts";
 import { Arg } from "./types.ts";
 
+/**
+ * WorkflowGen is the generator function returned by a workflow function.
+ */
 export type WorkflowGen<TResp extends unknown = unknown> = Generator<
   Command,
   TResp,
@@ -9,6 +12,9 @@ export type WorkflowGen<TResp extends unknown = unknown> = Generator<
   any
 >;
 
+/**
+ * WorkflowGenFn is a function that returns a workflow generator function.
+ */
 export type WorkflowGenFn<
   TArgs extends Arg = Arg,
   TResp extends unknown = unknown
@@ -16,6 +22,9 @@ export type WorkflowGenFn<
 
 export type NoArgWorkflowFn<TResp = unknown> = () => WorkflowGen<TResp>;
 
+/**
+ * a typeguard for checking if the workflow function requires arguments.
+ */
 export const isNoArgFn = function <TArgs extends Arg = Arg, TResp = unknown>(
   fn: WorkflowGenFn<TArgs, TResp>
 ): fn is NoArgWorkflowFn<TResp> {

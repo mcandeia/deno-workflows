@@ -6,6 +6,7 @@ import {
   CommandBase,
   ScheduleActivityCommand,
   SleepCommand,
+  WaitForSignalCommand,
 } from "./commands.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
@@ -28,7 +29,6 @@ export const isValue = <T>(value: ActivityResult<T>): value is T => {
  * Activity is the signature of any activity.
  */
 export type Activity<TArgs extends Arg, TResult> = (
-  ctx: WorkflowContext,
   ...args: [...TArgs]
 ) => ActivityResult<TResult>;
 
@@ -48,6 +48,15 @@ export class WorkflowContext {
   constructor(public instanceId: string) {
     this.rand = makeSeededGenerators(instanceId);
   }
+
+  /**
+   * waitForSignal wait for the given signal to be occurred.
+   * @param signal the signal name
+   */
+  public waitForSignal(signal: string): CommandBase {
+    return new WaitForSignalCommand(signal);
+  }
+
   /**
    * Executes the activity for the given context and args.
    * @param activity the activity that should be executed

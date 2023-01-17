@@ -1,8 +1,7 @@
 import { Activity, WorkflowContext } from "./context.ts";
-import { ActivityStartedEvent, HistoryEvent } from "./events.ts";
+import { ActivityStartedEvent, HistoryEvent, newEvent } from "./events.ts";
 import { isAwaitable, PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
-import { randomFloat } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 
 /**
  * The possible command state
@@ -136,14 +135,13 @@ export class SleepCommand extends CommandBase {
     if (!this.isReplaying) {
       return [
         {
+          ...newEvent(),
           type: "timer_scheduled",
-          id: `${this.ctx.random()}`,
-          timestamp: new Date(),
           until: this.until,
         },
         {
+          ...newEvent(),
           type: "timer_fired",
-          id: `${this.ctx.random()}`,
           timestamp: this.until,
           visibleAt: this.until,
         },
@@ -177,8 +175,8 @@ export class ScheduleActivityCommand<
     };
 
     const startedEvent: ActivityStartedEvent<TArgs> = {
+      ...newEvent(),
       ...eventBase,
-      id: `${this.ctx.random()}`,
       timestamp: started,
       activityName: this.activity.name,
       type: "activity_started",
@@ -186,16 +184,15 @@ export class ScheduleActivityCommand<
     };
 
     try {
-      const activityResult = this.activity(this.ctx, ...this.input);
+      const activityResult = this.activity(...this.input);
       const result = isAwaitable(activityResult)
         ? await activityResult
         : activityResult;
       return [
         startedEvent,
         {
+          ...newEvent(),
           ...eventBase,
-          id: `${this.ctx.random()}`,
-          timestamp: new Date(),
           type: "activity_completed",
           result,
         },
@@ -204,14 +201,34 @@ export class ScheduleActivityCommand<
       return [
         startedEvent,
         {
+          ...newEvent(),
           ...eventBase,
-          id: `${this.ctx.random()}`,
-          timestamp: new Date(),
           type: "activity_completed",
           exception: error,
         },
       ];
     }
+  }
+}
+
+export class WaitForSignalCommand extends CommandBase {
+  constructor(private signal: string) {
+    super();
+  }
+  run(): PromiseOrValue<HistoryEvent[]> {
+    if (this.isReplaying) {
+      return [];
+    }
+    return [
+      {
+        ...newEvent(),
+        type: "waiting_signal",
+        signal: this.signal,
+      },
+    ];
+  }
+  get name(): string {
+    return "wait_signal";
   }
 }
 
@@ -222,15 +239,14 @@ export class FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   run(): PromiseOrValue<HistoryEvent[]> {
     return [
       {
+        ...newEvent(),
         result: this.resp,
-        timestamp: new Date(),
-        id: `${randomFloat()}`,
         type: "workflow_finished",
       },
     ];
   }
   get name(): string {
-    throw "finish_workflow";
+    return "finish_workflow";
   }
 }
 
@@ -242,14 +258,13 @@ export class StartWorkflowCommand<TArgs extends Arg = Arg> extends CommandBase {
   run(): PromiseOrValue<HistoryEvent[]> {
     return [
       {
+        ...newEvent(),
         input: this.args,
-        timestamp: new Date(),
-        id: `${randomFloat()}`,
         type: "workflow_started",
       },
     ];
   }
   get name(): string {
-    throw "start_workflow";
+    return "start_workflow";
   }
 }
