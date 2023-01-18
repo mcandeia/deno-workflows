@@ -1,4 +1,5 @@
 import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { DEBUG_ENABLED } from "../mod.ts";
 
 function isWorkItem<T, TResult>(
   v: T | WorkItem<T, TResult>
@@ -18,7 +19,9 @@ const consumerFor = async <T, TResult>(
     if (recv === true) {
       break;
     }
-    console.log(`worker[${workerNum}]: ${recv.item}`);
+    if (DEBUG_ENABLED) {
+      console.log(`worker[${Deno.hostname()}_${workerNum}]: ${recv.item}`);
+    }
     await handler(recv.item).then(recv.onSuccess).catch(recv.onError);
   }
 };
@@ -67,5 +70,5 @@ export const startWorkers = <T, TResult>(
     .fill(() => consumerFor(n++, q, closed, handler))
     .map((f) => f());
   const producer = producerFor(q, closed, generator);
-  Promise.all([...workers, producer]);
+  return Promise.all([...workers, producer]);
 };

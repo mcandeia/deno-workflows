@@ -8,7 +8,7 @@ import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
 export interface Events {
   add(...events: [...HistoryEvent[]]): Promise<void>;
   del(...events: [...HistoryEvent[]]): Promise<void>;
-  get(visible?: boolean): Promise<HistoryEvent[]>;
+  get(): Promise<HistoryEvent[]>;
 }
 
 /**

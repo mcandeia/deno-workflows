@@ -75,10 +75,10 @@ export class WorkflowService {
   /**
    * start the background workers.
    */
-  public startWorkers(opts?: HandlerOpts) {
+  public async startWorkers(opts?: HandlerOpts) {
     const workerCount = opts?.concurrency ?? 1;
     const q = new Queue<WorkItem<string>>(workerCount);
-    startWorkers(
+    await startWorkers(
       (async (instanceId: string) => {
         await this.runWorkflow(instanceId);
       }).bind(this),
@@ -166,9 +166,9 @@ export class WorkflowService {
         throw new Error("workflow not found");
       }
 
-      const [events, pendingEvents] = await Promise.all([
+      const [history, pendingEvents] = await Promise.all([
         instanceDB.history.get(),
-        instanceDB.pending.get(true),
+        instanceDB.pending.get(),
       ]);
       const ctx = new WorkflowContext(instanceId);
       const workflowFn: WorkflowGenFn<TArgs, TResult> = (
@@ -178,17 +178,14 @@ export class WorkflowService {
       };
 
       let state: WorkflowState<TArgs, TResult> = [
-        ...events,
+        ...history,
         ...pendingEvents,
       ].reduce(apply, zeroState(workflowFn));
 
-      await Promise.all([
-        instanceDB.history.add(...pendingEvents),
-        instanceDB.pending.del(...pendingEvents),
-      ]);
-
+      let lastSeq = history.length === 0 ? 0 : history[history.length - 1].seq;
       const newPending: HistoryEvent[] = [];
-      const history: HistoryEvent[] = [];
+      const newHistory: HistoryEvent[] = pendingEvents;
+
       // this should be done by a command handler executor in background.
       while (
         !(
@@ -204,7 +201,7 @@ export class WorkflowService {
             newPending.push(event);
           } else {
             state = apply(state, event);
-            history.push(event);
+            newHistory.push(event);
           }
         });
       }
@@ -217,15 +214,25 @@ export class WorkflowService {
       }
 
       const historyPromise =
-        history.length === 0
+        newHistory.length === 0
           ? Promise.resolve()
-          : instanceDB.history.add(...history);
+          : instanceDB.history.add(
+              ...newHistory.map((event) => ({ ...event, seq: ++lastSeq }))
+            );
+      const deletePendingPromise =
+        newHistory.length === 0
+          ? Promise.resolve()
+          : instanceDB.pending.del(...newHistory);
       const pendingEventsPromise =
         newPending.length === 0
           ? Promise.resolve()
           : instanceDB.pending.add(...newPending);
 
-      await Promise.all([historyPromise, pendingEventsPromise]);
+      await Promise.all([
+        historyPromise,
+        deletePendingPromise,
+        pendingEventsPromise,
+      ]);
       return state;
     });
   }

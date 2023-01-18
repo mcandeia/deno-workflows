@@ -11,6 +11,7 @@ export interface Event {
   type: string;
   id: string;
   timestamp: Date;
+  seq: number;
   visibleAt?: Date;
 }
 
@@ -263,5 +264,6 @@ export const newEvent = (): Omit<Event, "type"> => {
   return {
     id: v4.generate(),
     timestamp: new Date(),
+    seq: 0,
   };
 };
