@@ -18,7 +18,7 @@ export const updateInstance = (
   return `UPDATE ${TABLE_INSTANCES} SET alias='${alias}', completed_at=${valueOrNull(
     completedAt?.toISOString()
   )}, result=${valueOrNull(
-    result ? JSON.stringify(result) : undefined
+    result !== undefined ? JSON.stringify(result) : undefined
   )} WHERE id='${instanceId}'`;
 };
 

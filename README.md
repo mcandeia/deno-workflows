@@ -16,4 +16,24 @@ TODO
 
 ## Running samples
 
-WORKERS_LOCK_MINUTES=[workers_minutes] PG_INTERVAL_EMPTY_EVENTS=[interval_in_ms] PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env simple.ts
+In your terminal, run:
+
+```shell
+ENABLE_DEBUG=true WORKERS_COUNT=[num_of_workers] WORKERS_LOCK_MINUTES=[workers_minutes] PG_INTERVAL_EMPTY_EVENTS=[interval_in_ms] PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env --allow-sys workers.ts
+```
+
+You'll see workers sql-like logs
+
+Open another terminal tab and run:
+
+```shell
+ENABLE_DEBUG=true PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env --allow-sys simple.ts
+```
+
+This last command will start a bunch of workflows that will be executed until it reaches the wait for signal command, at this point we should be able to proceed the execution by sending the expected signal to the given workflow instances.
+
+After a while ~1 minute, dispatch the signals
+
+```shell
+ENABLE_DEBUG=true PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env --allow-sys signal.ts
+```

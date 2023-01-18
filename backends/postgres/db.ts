@@ -4,15 +4,22 @@ import {
 } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { QueryObjectResult } from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
 import { HistoryEvent } from "../../events.ts";
+import { DEBUG_ENABLED } from "../../mod.ts";
 import { apply } from "../../utils.ts";
-import { WorkflowInstance } from "../backend.ts";
-import { DB, Events, Instance, PendingExecution } from "../backend.ts";
+import {
+  DB,
+  Events,
+  Instance,
+  PendingExecution,
+  WorkflowInstance,
+} from "../backend.ts";
 import { usePool } from "./connect.ts";
 import {
   deleteEvents,
   insertEvents,
   PersistedEvent,
-  queryEvents,
+  queryHistory,
+  queryPendingEvents,
   toHistoryEvent,
 } from "./events.ts";
 import {
@@ -29,7 +36,7 @@ type UseClient = <TResult>(
 ) => Promise<TResult>;
 
 const isClient = (client: Transaction | PoolClient): client is PoolClient => {
-  return typeof (client as PoolClient).createTransaction !== "function";
+  return typeof (client as PoolClient).createTransaction === "function";
 };
 
 const unlockWkflowInstance = (instanceId: string) => async () => {
@@ -41,27 +48,27 @@ const unlockWkflowInstance = (instanceId: string) => async () => {
 const queryObject =
   <T>(query: string) =>
   (client: Transaction | PoolClient): Promise<QueryObjectResult<T>> => {
+    if (DEBUG_ENABLED) {
+      console.log(query);
+    }
     return client.queryObject<T>(query);
   };
 
 const eventsFor = (
   useClient: UseClient,
   instanceId: string,
-  table: string
+  table: string,
+  eventsQuery: string
 ): Events => {
-  const insert = insertEvents(table);
-  const del = deleteEvents(table);
   return {
     add: async (...events: [...HistoryEvent[]]) => {
-      await useClient(queryObject(insert(instanceId, events)));
+      await useClient(queryObject(insertEvents(table, instanceId, events)));
     },
     del: async (...events: [...HistoryEvent[]]) => {
-      await useClient(queryObject(del(instanceId, events)));
+      await useClient(queryObject(deleteEvents(table, instanceId, events)));
     },
-    get: async (visibleAt?: boolean) => {
-      const events = await useClient(
-        queryObject<PersistedEvent>(queryEvents(table, visibleAt)(instanceId))
-      );
+    get: async () => {
+      const events = await useClient(queryObject<PersistedEvent>(eventsQuery));
       return events.rows.map(toHistoryEvent);
     },
   };
@@ -71,8 +78,18 @@ const instancesFor =
   (useClient: UseClient) =>
   (instanceId: string): Instance => {
     return {
-      pending: eventsFor(useClient, instanceId, "pending_events"),
-      history: eventsFor(useClient, instanceId, "history"),
+      pending: eventsFor(
+        useClient,
+        instanceId,
+        "pending_events",
+        queryPendingEvents(instanceId)
+      ),
+      history: eventsFor(
+        useClient,
+        instanceId,
+        "history",
+        queryHistory(instanceId)
+      ),
       get: () =>
         useClient(queryObject<WorkflowInstance>(getInstance(instanceId))).then(
           ({ rows }) => (rows.length === 0 ? undefined : rows[0])

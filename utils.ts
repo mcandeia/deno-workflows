@@ -34,6 +34,7 @@ export const tryApply =
  * parses the given integer if not undefined.
  */
 export const tryParseInt = tryApply(parseInt);
+export const tryParseBool = tryApply((v) => v === "true");
 
 export const apply =
   <T, TResult>(param: T) =>
