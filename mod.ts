@@ -1,6 +1,8 @@
-import { WorkflowService } from "./service/workflow.ts";
-import { postgres } from "./backends/postgres/db.ts";
 import { tryParseBool } from "./utils.ts";
-export const DEBUG_ENABLED =
-  tryParseBool(Deno.env.get("ENABLE_DEBUG")) ?? false;
-export { WorkflowService, postgres };
+import { WorkflowContext } from "./context.ts";
+import { workflowHTTPHandler } from "./handler.ts";
+import type { Workflow } from "./workers/executors/deno/workflow.ts";
+const DEBUG_ENABLED = tryParseBool(Deno.env.get("ENABLE_DEBUG")) ??
+  false;
+
+export { DEBUG_ENABLED, Workflow, WorkflowContext, workflowHTTPHandler };

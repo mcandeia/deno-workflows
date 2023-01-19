@@ -8,7 +8,7 @@ async function plsSum(a: number, b: number): Promise<number> {
 }
 
 // workflow definition
-export const sumWithDelayWorkflow = function* (ctx: WorkflowContext) {
+const sumWithDelayWorkflow = function* (ctx: WorkflowContext) {
   const resp: number = yield ctx.callActivity(plsSum, 10, 20);
   yield ctx.sleep(5000);
   const resp2: number = yield ctx.callActivity(plsSum, 30, 20);
@@ -27,12 +27,12 @@ async function createOrder(form: OrderForm): Promise<void> {
   await delay(5000); // faking some delay
 }
 
-export const createOrderWorkflow = function* (
+export default function* createOrderWorkflow(
   ctx: WorkflowContext,
-  orderForm: OrderForm
+  orderForm: OrderForm,
 ) {
   yield ctx.callActivity(createOrder, orderForm);
   yield* sumWithDelayWorkflow(ctx);
   const orderCreated: Order = yield ctx.waitForSignal("order_created");
   return orderCreated.id;
-};
+}

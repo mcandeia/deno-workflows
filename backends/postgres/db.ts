@@ -2,8 +2,11 @@ import {
   PoolClient,
   Transaction,
 } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
-import { QueryObjectResult } from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
-import { HistoryEvent } from "../../events.ts";
+import {
+  QueryArguments,
+  QueryObjectResult,
+} from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
+import { HistoryEvent } from "../../workers/events.ts";
 import { DEBUG_ENABLED } from "../../mod.ts";
 import { apply } from "../../utils.ts";
 import {
@@ -12,6 +15,7 @@ import {
   Execution,
   PendingExecution,
   WorkflowExecution,
+  WorkflowExecutor,
 } from "../backend.ts";
 import { usePool } from "./connect.ts";
 import {
@@ -30,9 +34,16 @@ import {
   updateExecution,
 } from "./executions.ts";
 import schema from "./schema.ts";
+import {
+  getExecutor,
+  insertExecutor,
+  listAllExecutors,
+  toExecutor,
+  updateExecutor,
+} from "./executors.ts";
 
 type UseClient = <TResult>(
-  f: (client: Transaction | PoolClient) => Promise<TResult>
+  f: (client: Transaction | PoolClient) => Promise<TResult>,
 ) => Promise<TResult>;
 
 const isClient = (client: Transaction | PoolClient): client is PoolClient => {
@@ -45,20 +56,21 @@ const unlockWkflowExecution = (executionId: string) => async () => {
   });
 };
 
+// TODO use queryarguments to avoid sql injection
 const queryObject =
-  <T>(query: string) =>
+  <T>(query: string, queryArguments?: QueryArguments) =>
   (client: Transaction | PoolClient): Promise<QueryObjectResult<T>> => {
     if (DEBUG_ENABLED) {
       console.log(query);
     }
-    return client.queryObject<T>(query);
+    return client.queryObject<T>(query, queryArguments);
   };
 
 const eventsFor = (
   useClient: UseClient,
   executionId: string,
   table: string,
-  eventsQuery: string
+  eventsQuery: string,
 ): Events => {
   return {
     add: async (...events: [...HistoryEvent[]]) => {
@@ -75,24 +87,23 @@ const eventsFor = (
 };
 
 const executionsFor =
-  (useClient: UseClient) =>
-  (executionId: string): Execution => {
+  (useClient: UseClient) => (executionId: string): Execution => {
     return {
       pending: eventsFor(
         useClient,
         executionId,
         "pending_events",
-        queryPendingEvents(executionId)
+        queryPendingEvents(executionId),
       ),
       history: eventsFor(
         useClient,
         executionId,
         "history",
-        queryHistory(executionId)
+        queryHistory(executionId),
       ),
       get: () =>
         useClient(
-          queryObject<WorkflowExecution>(getExecution(executionId))
+          queryObject<WorkflowExecution>(getExecution(executionId)),
         ).then(({ rows }) => (rows.length === 0 ? undefined : rows[0])),
       create: async (execution: WorkflowExecution) => {
         await useClient(queryObject(insertExecution(executionId, execution)));
@@ -105,9 +116,34 @@ const executionsFor =
 
 function dbFor(useClient: UseClient): DB {
   return {
+    executors: {
+      list: () => {
+        return useClient(
+          queryObject<{ alias: string; type: string; attributes: unknown }>(
+            listAllExecutors,
+          ),
+        ).then((
+          { rows },
+        ) => rows.map(toExecutor));
+      },
+      get: async (alias: string): Promise<WorkflowExecutor | undefined> => {
+        const { rows: [resp] } = await useClient(
+          queryObject<{ alias: string; type: string; attributes: unknown }>(
+            getExecutor(alias),
+          ),
+        );
+        return resp === undefined ? undefined : toExecutor(resp);
+      },
+      insert: async (executor: WorkflowExecutor) => {
+        await useClient(queryObject(insertExecutor(executor)));
+      },
+      update: async (executor: WorkflowExecutor) => {
+        await useClient(queryObject(updateExecutor(executor)));
+      },
+    },
     execution: executionsFor(useClient),
     withinTransaction: async <TResult>(
-      exec: (executor: DB) => Promise<TResult>
+      exec: (executor: DB) => Promise<TResult>,
     ): Promise<TResult> => {
       return await useClient(async (client) => {
         if (!isClient(client)) {
@@ -127,20 +163,18 @@ function dbFor(useClient: UseClient): DB {
         }
       });
     },
-    pendingExecutions: async (
+    pendingExecutions: (
       lockTimeoutMS: number,
-      limit: number
+      limit: number,
     ): Promise<PendingExecution[]> => {
-      return await useClient<PendingExecution[]>(async (client) => {
-        return await client
-          .queryObject<{ id: string }>(pendingExecutions(lockTimeoutMS, limit))
-          .then(({ rows }) =>
-            rows.map(({ id: execution }) => ({
-              execution,
-              unlock: unlockWkflowExecution(execution),
-            }))
-          );
-      });
+      return useClient(
+        queryObject<{ id: string }>(pendingExecutions(lockTimeoutMS, limit)),
+      ).then(({ rows }) =>
+        rows.map(({ id: execution }) => ({
+          execution,
+          unlock: unlockWkflowExecution(execution),
+        }))
+      );
     },
   };
 }

@@ -1,4 +1,11 @@
 export default `
+CREATE TABLE IF NOT EXISTS executors (
+    alias TEXT NOT NULL,
+    type TEXT NOT NULL,
+    attributes JSON NULL,
+    PRIMARY KEY(alias)
+);
+
 CREATE TABLE IF NOT EXISTS executions (
     id TEXT,
     alias TEXT NOT NULL,
