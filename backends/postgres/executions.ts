@@ -1,25 +1,31 @@
 import { WorkflowExecution } from "../backend.ts";
-import { valueOrNull } from "./utils.ts";
+import { isoDate, valueOrNull } from "./utils.ts";
 
 const TABLE_EXECUTIONS = "executions";
 export const insertExecution = (
   executionId: string,
-  { alias, completedAt, result }: WorkflowExecution
+  { alias, completedAt, result }: WorkflowExecution,
 ): string => {
-  return `INSERT INTO ${TABLE_EXECUTIONS} (id, alias, completed_at, result) VALUES('${executionId}', '${alias}', ${valueOrNull(
-    completedAt?.toISOString()
-  )}, ${valueOrNull(result ? JSON.stringify(result) : undefined)})`;
+  return `INSERT INTO ${TABLE_EXECUTIONS} (id, alias, completed_at, result) VALUES('${executionId}', '${alias}', ${
+    valueOrNull(
+      completedAt === undefined ? undefined : isoDate(completedAt),
+    )
+  }, ${valueOrNull(result ? JSON.stringify(result) : undefined)})`;
 };
 
 export const updateExecution = (
   executionId: string,
-  { alias, completedAt, result }: WorkflowExecution
+  { alias, completedAt, result }: WorkflowExecution,
 ): string => {
-  return `UPDATE ${TABLE_EXECUTIONS} SET alias='${alias}', completed_at=${valueOrNull(
-    completedAt?.toISOString()
-  )}, result=${valueOrNull(
-    result !== undefined ? JSON.stringify(result) : undefined
-  )} WHERE id='${executionId}'`;
+  return `UPDATE ${TABLE_EXECUTIONS} SET alias='${alias}', completed_at=${
+    valueOrNull(
+      completedAt === undefined ? undefined : isoDate(completedAt),
+    )
+  }, result=${
+    valueOrNull(
+      result !== undefined ? JSON.stringify(result) : undefined,
+    )
+  } WHERE id='${executionId}'`;
 };
 
 export const getExecution = (executionId: string): string => {

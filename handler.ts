@@ -20,6 +20,7 @@ export const workflowHTTPHandler = (workflow: Workflow): Handler => {
     const { executionId, history, pendingEvents } = await req
       .json() as RunRequest;
 
-    return Response.json(await executor(executionId, history, pendingEvents));
+    const resp = await executor(executionId, history, pendingEvents);
+    return Response.json(resp);
   };
 };

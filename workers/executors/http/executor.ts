@@ -8,6 +8,7 @@ export const httpExecutorFor = (url: string): WorkflowExecutor => {
     pendingEvents,
   ): Promise<HistoryEvent[] | Completed> => {
     const resp = await fetch(url, {
+      method: "POST",
       body: JSON.stringify({
         executionId,
         history,

@@ -1,5 +1,5 @@
 import { HistoryEvent } from "../../workers/events.ts";
-import { valueOrNull } from "./utils.ts";
+import { isoDate, valueOrNull } from "./utils.ts";
 
 const queryEvents = (table: string, executionId: string) =>
   `SELECT id, type, timestamp, visible_at visibleAt, seq, attributes FROM ${table} WHERE execution_id='${executionId}'`;
@@ -18,11 +18,13 @@ export const queryHistory = (executionId: string): string =>
 export const historyEventToValues =
   (executionId: string) =>
   ({ id, type, timestamp, visibleAt, seq, ...rest }: HistoryEvent): string => {
-    return `('${id}', '${executionId}', '${type}', '${timestamp.toISOString()}', '${
+    return `('${id}', '${executionId}', '${type}', '${isoDate(timestamp)}', '${
       JSON.stringify(
         rest,
       )
-    }', ${valueOrNull(visibleAt?.toISOString())}, ${seq})`;
+    }', ${
+      valueOrNull(visibleAt === undefined ? undefined : isoDate(visibleAt))
+    }, ${seq})`;
   };
 
 export const insertEvents = (

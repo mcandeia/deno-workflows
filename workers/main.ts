@@ -16,7 +16,7 @@ const MAX_LOCK_MINUTES = tryParseInt(Deno.env.get("WORKERS_LOCK_MINUTES")) ??
   10;
 
 const DELAY_WHEN_NO_PENDING_EVENTS_MS =
-  tryParseInt(Deno.env.get("PG_INTERVAL_EMPTY_EVENTS")) ?? 5_000;
+  tryParseInt(Deno.env.get("PG_INTERVAL_EMPTY_EVENTS")) ?? 15_000;
 
 async function* executionsGenerator(
   db: DB,
@@ -52,7 +52,10 @@ async function* executionsGenerator(
     for (const { execution: item, unlock } of executionIds) {
       yield {
         item,
-        onError: unlock,
+        onError: async (err) => {
+          await unlock();
+          throw err;
+        },
         onSuccess: unlock,
       };
     }
@@ -70,6 +73,7 @@ const workflowHandler =
       const executor = maybeInstance
         ? await registry.get(maybeInstance.alias)
         : undefined;
+
       if (executor === undefined) {
         throw new Error("workflow not found");
       }
