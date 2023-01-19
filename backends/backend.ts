@@ -12,32 +12,32 @@ export interface Events {
 }
 
 /**
- * Instance is all operations that can be executed in a given instance.
+ * Execution is all operations that can be executed in a given execution.
  */
-export interface Instance {
+export interface Execution {
   pending: Events;
   history: Events;
-  get(): Promise<WorkflowInstance | undefined>;
-  create(instance: WorkflowInstance): Promise<void>;
-  update(instance: WorkflowInstance): Promise<void>;
+  get(): Promise<WorkflowExecution | undefined>;
+  create(execution: WorkflowExecution): Promise<void>;
+  update(execution: WorkflowExecution): Promise<void>;
 }
 
 /**
- * PendingExecution is a locked workflow instance pending to be executed.
+ * PendingExecution is a locked workflow execution pending to be executed.
  */
 export interface PendingExecution {
-  instance: string;
+  execution: string;
   unlock: () => Promise<void>;
 }
 
 export interface DB {
   /**
-   * instance returns the possible operations for a given instance.
+   * Execution returns the possible operations for a given execution.
    */
-  instance(instanceId: string): Instance;
+  execution(executionId: string): Execution;
   /**
-   * PendingExecutions returns all workflow instance that has pending events and lock all of them using the specified lock time.
-   * @param lockTimeMS is the time that the workflow instance should be locked
+   * PendingExecutions returns all workflow execution that has pending events and lock all of them using the specified lock time.
+   * @param lockTimeMS is the time that the workflow execution should be locked
    * @param limit limit the query result.
    */
   pendingExecutions(
@@ -53,7 +53,7 @@ export interface DB {
   withinTransaction<T>(f: (transactor: DB) => PromiseOrValue<T>): Promise<T>;
 }
 
-export interface WorkflowInstance<TResult = unknown> {
+export interface WorkflowExecution<TResult = unknown> {
   id: string;
   alias: string;
   completedAt?: Date;

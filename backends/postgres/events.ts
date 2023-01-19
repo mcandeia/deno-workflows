@@ -1,42 +1,42 @@
 import { HistoryEvent } from "../../events.ts";
 import { valueOrNull } from "./utils.ts";
 
-const queryEvents = (table: string, instanceId: string) =>
-  `SELECT id, type, timestamp, visible_at visibleAt, seq, attributes FROM ${table} WHERE instance_id='${instanceId}'`;
+const queryEvents = (table: string, executionId: string) =>
+  `SELECT id, type, timestamp, visible_at visibleAt, seq, attributes FROM ${table} WHERE execution_id='${executionId}'`;
 
-export const queryPendingEvents = (instanceId: string) =>
+export const queryPendingEvents = (executionId: string) =>
   `${queryEvents(
     "pending_events",
-    instanceId
+    executionId
   )} AND (visible_at is NULL OR visible_at <= now()) ORDER BY visible_at ASC`;
 
-export const queryHistory = (instanceId: string): string =>
-  `${queryEvents("history", instanceId)} ORDER BY seq ASC`;
+export const queryHistory = (executionId: string): string =>
+  `${queryEvents("history", executionId)} ORDER BY seq ASC`;
 
 export const historyEventToValues =
-  (instanceId: string) =>
+  (executionId: string) =>
   ({ id, type, timestamp, visibleAt, seq, ...rest }: HistoryEvent): string => {
-    return `('${id}', '${instanceId}', '${type}', '${timestamp.toISOString()}', '${JSON.stringify(
+    return `('${id}', '${executionId}', '${type}', '${timestamp.toISOString()}', '${JSON.stringify(
       rest
     )}', ${valueOrNull(visibleAt?.toISOString())}, ${seq})`;
   };
 
 export const insertEvents = (
   table: string,
-  instanceId: string,
+  executionId: string,
   events: HistoryEvent[]
 ): string => {
-  return `INSERT INTO ${table} (id, instance_id, type, timestamp, attributes, visible_at, seq) VALUES ${events
-    .map(historyEventToValues(instanceId))
+  return `INSERT INTO ${table} (id, execution_id, type, timestamp, attributes, visible_at, seq) VALUES ${events
+    .map(historyEventToValues(executionId))
     .join(",")}`;
 };
 
 export const deleteEvents = (
   table: string,
-  instanceId: string,
+  executionId: string,
   eventIds: HistoryEvent[]
 ) => {
-  return `DELETE FROM ${table} WHERE instance_id='${instanceId}' AND id IN (${eventIds
+  return `DELETE FROM ${table} WHERE execution_id='${executionId}' AND id IN (${eventIds
     .map(({ id }) => `'${id}'`)
     .join(",")})`;
 };

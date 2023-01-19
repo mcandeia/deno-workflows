@@ -1,4 +1,4 @@
-import { HandlerOpts, WorkflowInstance } from "../backends/backend.ts";
+import { HandlerOpts, WorkflowExecution } from "../backends/backend.ts";
 import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
 import { WorkflowContext } from "../context.ts";
 import { HistoryEvent, apply, newEvent } from "../events.ts";
@@ -12,10 +12,10 @@ import { startWorkers, WorkItem } from "../worker/starter.ts";
 import { tryParseInt } from "../utils.ts";
 
 /**
- * WorkflowCreationOptions is used for creating workflows of a given instanceId.
+ * WorkflowCreationOptions is used for creating workflows of a given executionId.
  */
 export interface WorkflowCreationOptions {
-  instanceId?: string;
+  executionId?: string;
   alias: string;
 }
 
@@ -25,7 +25,7 @@ const MAX_LOCK_MINUTES =
 const DELAY_WHEN_NO_PENDING_EVENTS_MS =
   tryParseInt(Deno.env.get("PG_INTERVAL_EMPTY_EVENTS")) ?? 5_000;
 
-async function* instancesGenerator(
+async function* executionsGenerator(
   db: DB,
   freeWorkers: () => number,
   cancellation: Event
@@ -39,16 +39,16 @@ async function* instancesGenerator(
       ]);
       continue;
     }
-    const instanceIds = await Promise.race([
+    const executionIds = await Promise.race([
       db.pendingExecutions(MAX_LOCK_MINUTES, limit),
       cancellation.wait(),
     ]);
 
-    if (instanceIds == true) {
+    if (executionIds == true) {
       break;
     }
 
-    if (instanceIds.length == 0) {
+    if (executionIds.length == 0) {
       await Promise.race([
         delay(DELAY_WHEN_NO_PENDING_EVENTS_MS),
         cancellation.wait(),
@@ -56,7 +56,7 @@ async function* instancesGenerator(
       continue;
     }
 
-    for (const { instance: item, unlock } of instanceIds) {
+    for (const { execution: item, unlock } of executionIds) {
       yield {
         item,
         onError: unlock,
@@ -79,10 +79,10 @@ export class WorkflowService {
     const workerCount = opts?.concurrency ?? 1;
     const q = new Queue<WorkItem<string>>(workerCount);
     await startWorkers(
-      (async (instanceId: string) => {
-        await this.runWorkflow(instanceId);
+      (async (executionId: string) => {
+        await this.runWorkflow(executionId);
       }).bind(this),
-      instancesGenerator(
+      executionsGenerator(
         this.backend,
         () => workerCount - q.qsize(),
         opts?.cancellation ?? new Event()
@@ -110,11 +110,11 @@ export class WorkflowService {
    * Signal the workflow with the given signal and payload.
    */
   public async signalWorkflow(
-    instanceId: string,
+    executionId: string,
     signal: string,
     payload?: unknown
   ): Promise<void> {
-    await this.backend.instance(instanceId).pending.add({
+    await this.backend.execution(executionId).pending.add({
       ...newEvent(),
       type: "signal_received",
       signal,
@@ -123,25 +123,25 @@ export class WorkflowService {
   }
 
   /**
-   * Creates a new workflow based on the provided options and returns the newly created workflow instance.
+   * Creates a new workflow based on the provided options and returns the newly created workflow execution.
    * @param options the workflow creation options
    * @param input the workflow input
    */
   public async startWorkflow<TArgs extends Arg = Arg>(
-    { alias, instanceId }: WorkflowCreationOptions,
+    { alias, executionId }: WorkflowCreationOptions,
     input?: [...TArgs]
-  ): Promise<WorkflowInstance> {
-    const wkflowInstanceId = instanceId ?? v4.generate();
+  ): Promise<WorkflowExecution> {
+    const wkflowInstanceId = executionId ?? v4.generate();
     return await this.backend.withinTransaction(async (db) => {
-      const instance = { alias, id: wkflowInstanceId };
-      const instancesDB = db.instance(wkflowInstanceId);
-      await instancesDB.create(instance); // cannot be parallelized
-      await instancesDB.pending.add({
+      const execution = { alias, id: wkflowInstanceId };
+      const executionsDB = db.execution(wkflowInstanceId);
+      await executionsDB.create(execution); // cannot be parallelized
+      await executionsDB.pending.add({
         ...newEvent(),
         type: "workflow_started",
         input,
       });
-      return instance;
+      return execution;
     });
   }
 
@@ -149,11 +149,11 @@ export class WorkflowService {
    * Typically to be used internally, runs the workflow and returns the workflow state.
    */
   public async runWorkflow<TArgs extends Arg = Arg, TResult = unknown>(
-    instanceId: string
+    executionId: string
   ): Promise<WorkflowState<TArgs, TResult>> {
     return await this.backend.withinTransaction(async (db) => {
-      const instanceDB = db.instance(instanceId);
-      const maybeInstance = await instanceDB.get();
+      const executionDB = db.execution(executionId);
+      const maybeInstance = await executionDB.get();
       if (maybeInstance === undefined) {
         throw new Error("workflow not found");
       }
@@ -167,10 +167,10 @@ export class WorkflowService {
       }
 
       const [history, pendingEvents] = await Promise.all([
-        instanceDB.history.get(),
-        instanceDB.pending.get(),
+        executionDB.history.get(),
+        executionDB.pending.get(),
       ]);
-      const ctx = new WorkflowContext(instanceId);
+      const ctx = new WorkflowContext(executionId);
       const workflowFn: WorkflowGenFn<TArgs, TResult> = (
         ...args: [...TArgs]
       ): WorkflowGen<TResult> => {
@@ -206,7 +206,7 @@ export class WorkflowService {
         });
       }
       if (state.hasFinished) {
-        await instanceDB.update({
+        await executionDB.update({
           ...maybeInstance,
           result: state.result ?? state.exception,
           completedAt: new Date(),
@@ -216,17 +216,17 @@ export class WorkflowService {
       const historyPromise =
         newHistory.length === 0
           ? Promise.resolve()
-          : instanceDB.history.add(
+          : executionDB.history.add(
               ...newHistory.map((event) => ({ ...event, seq: ++lastSeq }))
             );
       const deletePendingPromise =
         newHistory.length === 0
           ? Promise.resolve()
-          : instanceDB.pending.del(...newHistory);
+          : executionDB.pending.del(...newHistory);
       const pendingEventsPromise =
         newPending.length === 0
           ? Promise.resolve()
-          : instanceDB.pending.add(...newPending);
+          : executionDB.pending.add(...newPending);
 
       await Promise.all([
         historyPromise,

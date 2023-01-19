@@ -6,7 +6,7 @@ for (let i = 0; i < totalWorkflowRuns; i++) {
     workflowService.startWorkflow(
       {
         alias: "createOrderWorkflow",
-        instanceId: `${i}`,
+        executionId: `${i}`,
       },
       [orderForm]
     )
