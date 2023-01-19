@@ -34,15 +34,16 @@ export class WorkflowService {
    * register the given workflow function in the registry map.
    * let the workflow function to be available to execute.
    * by default uses the function name as the workflow alias
-   * @param url the workflow url
    * @param alias the workflow alias
+   * @param attr the workflow attributes
+   * @param maybeType an optional type (defaults to deno)
    */
   public async registerWorkflowOfType(
     alias: string,
     attrs: any,
     maybeType?: string,
   ): Promise<void> {
-    const current = this.backend.executors.get(alias);
+    const current = await this.backend.executors.get(alias);
     const type = maybeType ?? "deno";
     if (current === undefined) {
       await this.backend.executors.insert({
