@@ -16,18 +16,7 @@ TODO
 
 ### Testing
 
-First thing you need to do is create your workflow executor, by using the following request:
-
-```shell
-curl --location --request PUT 'https://durable-workers.fly.dev/workflows/${workflowName}' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "url": "https://raw.githubusercontent.com/${organization}/${repository}/${branch or commit}/${path-to-workflow-file}.ts"
-}'
-```
-
-ps: replace the placeholders before sending the request
-ps2: do not use import maps otherwise the dynamic import will not work.
+First thing you need to do is to add your repository in a trust-list. In order to get your repository trust-listed create a PR [here](https://github.com/mcandeia/trusted-registries) and add it following the format.
 
 Start the workflow with the desired input by invoking the following request:
 
@@ -35,7 +24,7 @@ Start the workflow with the desired input by invoking the following request:
 curl --location --request POST 'https://durable-workers.fly.dev/executions' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-    "alias":"${workflowName}",
+    "alias":"${namespace}.${workflowName}",
     "input": [${workflow_param1}, ${workflow_param2}]
 }'
 ```
@@ -50,8 +39,8 @@ curl --location --request POST 'https://durable-workers.fly.dev/executions/${exe
 --data-raw '${desired_payload}'
 ```
 
-
 Get the workflow result:
+
 ```shell
 curl --location --request GET 'https://durable-workers.fly.dev/executions/${execution_id}'
 ```

@@ -1,11 +1,6 @@
-// deno-lint-ignore-file no-explicit-any
 import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
+import { DB, WorkflowExecution } from "../backends/backend.ts";
 import { Arg } from "../types.ts";
-import {
-  DB,
-  WorkflowExecution,
-  WorkflowExecutor,
-} from "../backends/backend.ts";
 import { newEvent } from "../workers/events.ts";
 
 /**
@@ -29,49 +24,6 @@ export class WorkflowService {
     executionId: string,
   ): Promise<WorkflowExecution | undefined> {
     return await this.backend.execution(executionId).get();
-  }
-  /**
-   * register the given workflow function in the registry map.
-   * let the workflow function to be available to execute.
-   * by default uses the function name as the workflow alias
-   * @param alias the workflow alias
-   * @param attr the workflow attributes
-   * @param maybeType an optional type (defaults to deno)
-   */
-  public async registerWorkflowOfType(
-    alias: string,
-    attrs: any,
-    maybeType?: string,
-  ): Promise<void> {
-    const current = await this.backend.executors.get(alias);
-    const type = maybeType ?? "deno";
-    if (current === undefined) {
-      await this.backend.executors.insert({
-        alias,
-        type,
-        ...attrs,
-      });
-    } else {
-      await this.backend.executors.update({ alias, type, ...attrs });
-    }
-  }
-
-  /**
-   * List all configured workflows
-   * @returns the configured workflow
-   */
-  public async listWorkflows(): Promise<WorkflowExecutor[]> {
-    return await this.backend.executors.list();
-  }
-
-  /**
-   * List all configured workflows
-   * @returns the configured workflow
-   */
-  public async getWorkflow(
-    alias: string,
-  ): Promise<WorkflowExecutor | undefined> {
-    return await this.backend.executors.get(alias);
   }
 
   /**

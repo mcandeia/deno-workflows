@@ -15,7 +15,6 @@ import {
   Execution,
   PendingExecution,
   WorkflowExecution,
-  WorkflowExecutor,
 } from "../backend.ts";
 import { usePool } from "./connect.ts";
 import {
@@ -34,13 +33,6 @@ import {
   updateExecution,
 } from "./executions.ts";
 import schema from "./schema.ts";
-import {
-  getExecutor,
-  insertExecutor,
-  listAllExecutors,
-  toExecutor,
-  updateExecutor,
-} from "./executors.ts";
 
 type UseClient = <TResult>(
   f: (client: Transaction | PoolClient) => Promise<TResult>,
@@ -116,31 +108,6 @@ const executionsFor =
 
 function dbFor(useClient: UseClient): DB {
   return {
-    executors: {
-      list: () => {
-        return useClient(
-          queryObject<{ alias: string; type: string; attributes: unknown }>(
-            listAllExecutors,
-          ),
-        ).then((
-          { rows },
-        ) => rows.map(toExecutor));
-      },
-      get: async (alias: string): Promise<WorkflowExecutor | undefined> => {
-        const { rows: [resp] } = await useClient(
-          queryObject<{ alias: string; type: string; attributes: unknown }>(
-            getExecutor(alias),
-          ),
-        );
-        return resp === undefined ? undefined : toExecutor(resp);
-      },
-      insert: async (executor: WorkflowExecutor) => {
-        await useClient(queryObject(insertExecutor(executor)));
-      },
-      update: async (executor: WorkflowExecutor) => {
-        await useClient(queryObject(updateExecutor(executor)));
-      },
-    },
     execution: executionsFor(useClient),
     withinTransaction: async <TResult>(
       exec: (executor: DB) => Promise<TResult>,

@@ -1,6 +1,6 @@
 import { Command } from "./commands.ts";
-import { WorkflowContext } from "../../../context.ts";
-import { Arg } from "../../../types.ts";
+import { WorkflowContext } from "../../context.ts";
+import { Arg } from "../../types.ts";
 
 /**
  * WorkflowGen is the generator function returned by a workflow function.

@@ -7,9 +7,9 @@ import {
   WorkflowCancelledEvent,
   WorkflowFinishedEvent,
   WorkflowStartedEvent,
-} from "../../events.ts";
+} from "../../workers/events.ts";
 
-import { Arg } from "../../../types.ts";
+import { Arg } from "../../types.ts";
 import { Command, FinishWorkflowCommand } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
 import { isNoArgFn } from "./workflow.ts";

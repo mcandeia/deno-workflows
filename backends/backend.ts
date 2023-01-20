@@ -2,21 +2,6 @@ import { HistoryEvent } from "../workers/events.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
 
-export interface WorkflowExecutorBase {
-  type: string;
-  alias: string;
-}
-export interface DenoWorkflowExecutor extends WorkflowExecutorBase {
-  type: "deno";
-  url: string;
-}
-
-export interface HttpWorkflowExecutor extends WorkflowExecutorBase {
-  type: "http";
-  url: string;
-}
-
-export type WorkflowExecutor = DenoWorkflowExecutor | HttpWorkflowExecutor;
 /**
  * Events is the operation that can be executed against the events.
  */
@@ -45,18 +30,7 @@ export interface PendingExecution {
   unlock: () => Promise<void>;
 }
 
-export interface Executors {
-  list(): Promise<WorkflowExecutor[]>;
-  get(alias: string): Promise<WorkflowExecutor | undefined>;
-  insert(executor: WorkflowExecutor): Promise<void>;
-  update(executor: WorkflowExecutor): Promise<void>;
-}
-
 export interface DB {
-  /**
-   * list all workflow executors.
-   */
-  executors: Executors;
   /**
    * Execution returns the possible operations for a given execution.
    */

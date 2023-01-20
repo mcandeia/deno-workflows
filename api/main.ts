@@ -6,21 +6,6 @@ import { WorkflowService } from "./service.ts";
 const service = new WorkflowService(postgres());
 await serve(
   router({
-    "PUT@/workflows/:alias": async (req, _, { alias }) => {
-      const { type, ...rest } = await req.json();
-      await service.registerWorkflowOfType(alias, rest, type);
-      return Response.json({ type, alias, ...rest });
-    },
-    "GET@/workflows": async (_req) => {
-      return Response.json({ items: await service.listWorkflows() });
-    },
-    "GET@/workflows/:alias": async (_req, _, { alias }) => {
-      const workflow = await service.getWorkflow(alias);
-      if (workflow === undefined) {
-        return Response.json({}, { status: 404 });
-      }
-      return Response.json(workflow);
-    },
     "POST@/executions": async (req) => {
       const { alias, input } = await req.json();
       return Response.json(

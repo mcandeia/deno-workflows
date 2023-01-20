@@ -1,10 +1,10 @@
+import { WorkflowContext } from "../../context.ts";
+import { Arg } from "../../types.ts";
+import { HistoryEvent } from "../../workers/events.ts";
+import { Completed, WorkflowExecutor } from "../../workers/executor.ts";
 import { apply } from "./events.ts";
-import { Completed, WorkflowExecutor } from "../../executor.ts";
-import { WorkflowContext } from "../../../context.ts";
 import { WorkflowState, zeroState } from "./state.ts";
 import { Workflow, WorkflowGen, WorkflowGenFn } from "./workflow.ts";
-import { Arg } from "../../../types.ts";
-import { HistoryEvent } from "../../events.ts";
 
 export const denoExecutor = <TArgs extends Arg = Arg, TResult = unknown>(
   workflow: Workflow<TArgs, TResult>,

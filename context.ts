@@ -7,7 +7,7 @@ import {
   ScheduleActivityCommand,
   SleepCommand,
   WaitForSignalCommand,
-} from "./workers/executors/deno/commands.ts";
+} from "./executors/deno/commands.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
 

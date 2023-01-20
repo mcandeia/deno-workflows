@@ -3,8 +3,8 @@ import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
 import { Arg } from "./types.ts";
 import { HistoryEvent } from "./workers/events.ts";
-import { denoExecutor } from "./workers/executors/deno/executor.ts";
-import { Workflow } from "./workers/executors/deno/workflow.ts";
+import { denoExecutor } from "./executors/deno/executor.ts";
+import { Workflow } from "./executors/deno/workflow.ts";
 
 export interface RunRequest {
   executionId: string;

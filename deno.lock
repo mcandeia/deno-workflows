@@ -121,6 +121,13 @@
     "https://jspm.dev/npm:seedrandom@3.0.5/seedrandom!cjs": "90156324b6b69efad145fb802607a81c977e0633089758a388f28d2f72c72d91",
     "https://jspm.dev/seedrandom": "dce9ea596ca9b58319a2a159e24ccfae3d7400dd0b8b4d6aa896db98cc2d6896",
     "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts": "122b3c826dc6c5de5d95389f397c5ff69fcd7a3dfca75cc010b41017b2245817",
-    "https://raw.githubusercontent.com/alextes/vegas/main/seedrandom.d.ts": "a57cf3cedabf87b87d8fe36dd2e846dd4bdbb878caf6e3e9c7d4848b73267523"
+    "https://raw.githubusercontent.com/alextes/vegas/main/seedrandom.d.ts": "a57cf3cedabf87b87d8fe36dd2e846dd4bdbb878caf6e3e9c7d4848b73267523",
+    "https://raw.githubusercontent.com/deco-sites/fashion/workflows/workflows/createOrder.ts": "73aa879dcbddedda11c005a41035e5857c888a80180a0a0859a7b04bdca1f713",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/durable/context.ts": "78c10d6c3ef8204f3b0ca8abbc2ad07ecfeea2addcbab05b4548e9b7dcfa294a",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/durable/promise.ts": "d6a26b1e5d015177c37c471b1009f37ed257dcb11b312de6b0077a3f14fed18b",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/durable/types.ts": "cc559900185387dafb842b4f21c8b0b6b566216d8837e842a709bc4e563aaea5",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/durable/workers/events.ts": "6883458cd61adba26f74f72d0ed5d088538b3139d6fffaab19b4ee1143227310",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/durable/workers/executors/deno/commands.ts": "e0e765d5e01675045785e161ebd7eb937027a469f311e0f3760aff248157468d",
+    "https://raw.githubusercontent.com/mcandeia/trusted-registries/main/registries.ts": "d5afe0b5443fc7691b510fef26673821d7271e3cb048bd0f86fed0ab6481dbb5"
   }
 }

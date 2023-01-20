@@ -4,8 +4,12 @@ import { postgres } from "../backends/postgres/db.ts";
 
 import { tryParseInt } from "../utils.ts";
 import { DB } from "../backends/backend.ts";
-import { executorBuilder, hasCompleted, WorkflowExecutor } from "./executor.ts";
+import { hasCompleted } from "./executor.ts";
 import { startWorkers, WorkItem } from "./worker.ts";
+import {
+  buildWorkflowRegistry,
+  WorkflowRegistry,
+} from "../registry/registries.ts";
 
 export interface HandlerOpts {
   cancellation?: Event;
@@ -113,26 +117,6 @@ const workflowHandler =
     });
   };
 
-// idea: WorkflowRegistry is saved at files system using a routine
-// following the same rationale we can persist the workflows on file system and use a stale-while-revalidate strategy
-// to download the new code.
-interface WorkflowRegistry {
-  get(alias: string): Promise<WorkflowExecutor | undefined>;
-}
-
-const buildRegistry = (db: DB): WorkflowRegistry => {
-  return {
-    // TODO Add HARD Cache here.
-    get: async (alias: string) => {
-      const executor = await db.executors.get(alias);
-      if (executor === undefined) {
-        return undefined;
-      }
-      return await executorBuilder[executor.type](executor);
-    },
-  };
-};
-
 const run = async (
   db: DB,
   { cancellation, concurrency }: HandlerOpts,
@@ -140,7 +124,7 @@ const run = async (
   const workerCount = concurrency ?? 1;
   const q = new Queue<WorkItem<string>>(workerCount);
   await startWorkers(
-    workflowHandler(db, buildRegistry(db)),
+    workflowHandler(db, await buildWorkflowRegistry()),
     executionsGenerator(
       db,
       () => workerCount - q.qsize(),

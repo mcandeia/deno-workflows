@@ -1,5 +1,5 @@
 import { Command, NoOpCommand } from "./commands.ts";
-import { Arg } from "../../../types.ts";
+import { Arg } from "../../types.ts";
 import { WorkflowGen, WorkflowGenFn } from "./workflow.ts";
 
 /**
