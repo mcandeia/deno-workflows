@@ -22,16 +22,16 @@ interface OrderForm {
 interface Order extends OrderForm {
   id: string;
 }
-async function createOrder(form: OrderForm): Promise<void> {
+async function createOrderVtex(form: OrderForm): Promise<void> {
   console.log("Received orderForm", form);
   await delay(5000); // faking some delay
 }
 
-export default function* createOrderWorkflow(
+export default function* createOrder(
   ctx: WorkflowContext,
   orderForm: OrderForm,
 ) {
-  yield ctx.callActivity(createOrder, orderForm);
+  yield ctx.callActivity(createOrderVtex, orderForm);
   yield* sumWithDelayWorkflow(ctx);
   const orderCreated: Order = yield ctx.waitForSignal("order_created");
   return orderCreated.id;
