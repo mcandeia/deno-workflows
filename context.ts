@@ -7,7 +7,7 @@ import {
   ScheduleActivityCommand,
   SleepCommand,
   WaitForSignalCommand,
-} from "./commands.ts";
+} from "./executors/deno/commands.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { Arg } from "./types.ts";
 
@@ -45,8 +45,8 @@ export type ActivityExecutor<TArgs extends Arg, TResult> = (
  */
 export class WorkflowContext {
   private rand: RandomGenerators;
-  constructor(public instanceId: string) {
-    this.rand = makeSeededGenerators(instanceId);
+  constructor(public executionId: string) {
+    this.rand = makeSeededGenerators(executionId);
   }
 
   /**

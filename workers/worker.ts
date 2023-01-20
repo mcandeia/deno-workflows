@@ -2,7 +2,7 @@ import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
 import { DEBUG_ENABLED } from "../mod.ts";
 
 function isWorkItem<T, TResult>(
-  v: T | WorkItem<T, TResult>
+  v: T | WorkItem<T, TResult>,
 ): v is WorkItem<T, TResult> {
   return (v as WorkItem<T, TResult>).item !== "undefined";
 }
@@ -12,7 +12,7 @@ const consumerFor = async <T, TResult>(
   workerNum: number,
   q: Queue<WorkItem<T, TResult>>,
   closed: Event,
-  handler: (s: T) => Promise<TResult>
+  handler: (s: T) => Promise<TResult>,
 ) => {
   while (!closed.is_set()) {
     const recv = await Promise.race([q.get(), closed.wait()]);
@@ -22,14 +22,18 @@ const consumerFor = async <T, TResult>(
     if (DEBUG_ENABLED) {
       console.log(`worker[${Deno.hostname()}_${workerNum}]: ${recv.item}`);
     }
-    await handler(recv.item).then(recv.onSuccess).catch(recv.onError);
+    try {
+      await handler(recv.item).then(recv.onSuccess).catch(recv.onError);
+    } catch (e) {
+      console.error("WORKER ERROR", e);
+    }
   }
 };
 
 const producerFor = async <T, TResult>(
   q: Queue<WorkItem<T, TResult>>,
   closed: Event,
-  generator: AsyncGenerator<T | WorkItem<T, TResult>, unknown, unknown>
+  generator: AsyncGenerator<T | WorkItem<T, TResult>, unknown, unknown>,
 ) => {
   let next = await generator.next();
   while (!next.done) {
@@ -37,7 +41,7 @@ const producerFor = async <T, TResult>(
     await q.put(
       isWorkItem(value)
         ? value
-        : { item: value, onSuccess: noop, onError: noop }
+        : { item: value, onSuccess: noop, onError: noop },
     );
     next = await generator.next();
   }
@@ -61,7 +65,7 @@ export const startWorkers = <T, TResult>(
   handler: (s: T) => Promise<TResult>,
   generator: AsyncGenerator<T | WorkItem<T, TResult>, unknown, TResult>,
   count: number,
-  queue?: Queue<WorkItem<T, TResult>>
+  queue?: Queue<WorkItem<T, TResult>>,
 ) => {
   const q = queue ?? new Queue<WorkItem<T, TResult>>(count);
   const closed = new Event();

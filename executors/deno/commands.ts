@@ -1,7 +1,11 @@
-import { Activity, WorkflowContext } from "./context.ts";
-import { ActivityStartedEvent, HistoryEvent, newEvent } from "./events.ts";
-import { isAwaitable, PromiseOrValue } from "./promise.ts";
-import { Arg } from "./types.ts";
+import { Activity, WorkflowContext } from "../../context.ts";
+import { isAwaitable, PromiseOrValue } from "../../promise.ts";
+import { Arg } from "../../types.ts";
+import {
+  ActivityStartedEvent,
+  HistoryEvent,
+  newEvent,
+} from "../../workers/events.ts";
 
 /**
  * The possible command state
@@ -155,12 +159,12 @@ export class SleepCommand extends CommandBase {
  */
 export class ScheduleActivityCommand<
   TArgs extends Arg = Arg,
-  TResult = unknown
+  TResult = unknown,
 > extends CommandBase {
   constructor(
     protected activity: Activity<TArgs, TResult>,
     protected ctx: WorkflowContext,
-    protected input: [...TArgs]
+    protected input: [...TArgs],
   ) {
     super();
   }

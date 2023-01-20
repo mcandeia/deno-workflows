@@ -10,7 +10,7 @@ const pool = new Pool({}, poolSize, true);
  * usePool retrieves a client from client pool and execute the given function using the client as paramater.
  */
 export async function usePool<T>(
-  f: (client: PoolClient) => PromiseOrValue<T>
+  f: (client: PoolClient) => PromiseOrValue<T>,
 ): Promise<T> {
   const client = await pool.connect();
   try {

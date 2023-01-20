@@ -1,5 +1,5 @@
 import { Command, NoOpCommand } from "./commands.ts";
-import { Arg } from "./types.ts";
+import { Arg } from "../../types.ts";
 import { WorkflowGen, WorkflowGenFn } from "./workflow.ts";
 
 /**
@@ -25,7 +25,7 @@ export interface WorkflowState<TArgs extends Arg = Arg, TResult = unknown> {
  * @returns the zero state for the workflow
  */
 export function zeroState<TArgs extends Arg = Arg, TResult = unknown>(
-  workflowFn: WorkflowGenFn<TArgs, TResult>
+  workflowFn: WorkflowGenFn<TArgs, TResult>,
 ): WorkflowState<TArgs, TResult> {
   return {
     current: new NoOpCommand(),

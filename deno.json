@@ -1,4 +1,6 @@
 {
+  "tasks": {
+  },
   "fmt": {
     "files": {
       "exclude": ["README.md", "LICENSE"]

@@ -2,11 +2,11 @@
 
 Borrows heavily from [go-workflows](https://github.com/cschleiden/go-workflows).
 
-Deno workflows is a workflow engine for building **workflows as a code** on top of Deno runtime. Deno workflows allows you to create long running persistent workflows using typescript with automatic recover from failures, retries, timers and signal handlers.
+Durable workflows is a workflow engine for building **workflows as a code** on top of Deno runtime. Durable workflows allows you to create long running persistent workflows using your preferred language with automatic recover from failures, retries, timers and signal handlers.
 
 ## How it works
 
-Deno workflows leverages the [Event Sourcing pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing) to provide a simple set of APIs for ensuring that your code will be executed in a at-east-once fashion model.
+Durable workflows leverages the [Event Sourcing pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing) to provide a simple set of APIs for ensuring that your code will be executed in a at-east-once fashion model.
 
 ### Workflows made easy
 
@@ -14,26 +14,33 @@ Workflows are functions that generates `Commands`, a workflow may have an input 
 
 TODO
 
-## Running samples
+### Testing
 
-In your terminal, run:
+First thing you need to do is to add your repository in a trust-list. In order to get your repository trust-listed create a PR [here](https://github.com/mcandeia/trusted-registries) and add it following the format.
+
+Start the workflow with the desired input by invoking the following request:
 
 ```shell
-ENABLE_DEBUG=true WORKERS_COUNT=[num_of_workers] WORKERS_LOCK_MINUTES=[workers_minutes] PG_INTERVAL_EMPTY_EVENTS=[interval_in_ms] PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env --allow-sys workers.ts
+curl --location --request POST 'https://durable-workers.fly.dev/executions' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "alias":"${namespace}.${workflowName}",
+    "input": [${workflow_param1}, ${workflow_param2}]
+}'
 ```
 
-You'll see workers sql-like logs
+**Do not forget to save the returned execution id**,
 
-Open another terminal tab and run:
+If you're using signals you can send it by using the following request:
 
 ```shell
-ENABLE_DEBUG=true PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env --allow-sys simple.ts
+curl --location --request POST 'https://durable-workers.fly.dev/executions/${execution_id}/signals/${signal_name}' \
+--header 'Content-Type: application/json' \
+--data-raw '${desired_payload}'
 ```
 
-This last command will start a bunch of workflows that will be executed until it reaches the wait for signal command, at this point we should be able to proceed the execution by sending the expected signal to the given workflow instances.
-
-After a while ~1 minute, dispatch the signals
+Get the workflow result:
 
 ```shell
-ENABLE_DEBUG=true PGPOOLSIZE=[pgpoolSize] PGUSER=[pguser] PGPASSWORD=[password] PGHOST=[pghost] PGPORT=[pgport] PGDATABASE=[postgres] deno run --allow-net --allow-env --allow-sys signal.ts
+curl --location --request GET 'https://durable-workers.fly.dev/executions/${execution_id}'
 ```

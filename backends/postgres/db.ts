@@ -2,16 +2,19 @@ import {
   PoolClient,
   Transaction,
 } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
-import { QueryObjectResult } from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
-import { HistoryEvent } from "../../events.ts";
+import {
+  QueryArguments,
+  QueryObjectResult,
+} from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
+import { HistoryEvent } from "../../workers/events.ts";
 import { DEBUG_ENABLED } from "../../mod.ts";
 import { apply } from "../../utils.ts";
 import {
   DB,
   Events,
-  Instance,
+  Execution,
   PendingExecution,
-  WorkflowInstance,
+  WorkflowExecution,
 } from "../backend.ts";
 import { usePool } from "./connect.ts";
 import {
@@ -23,49 +26,50 @@ import {
   toHistoryEvent,
 } from "./events.ts";
 import {
-  getInstance,
-  insertInstance,
-  pendingInstances,
-  unlockInstance,
-  updateInstance,
-} from "./instances.ts";
+  getExecution,
+  insertExecution,
+  pendingExecutions,
+  unlockExecution,
+  updateExecution,
+} from "./executions.ts";
 import schema from "./schema.ts";
 
 type UseClient = <TResult>(
-  f: (client: Transaction | PoolClient) => Promise<TResult>
+  f: (client: Transaction | PoolClient) => Promise<TResult>,
 ) => Promise<TResult>;
 
 const isClient = (client: Transaction | PoolClient): client is PoolClient => {
   return typeof (client as PoolClient).createTransaction === "function";
 };
 
-const unlockWkflowInstance = (instanceId: string) => async () => {
+const unlockWkflowExecution = (executionId: string) => async () => {
   await usePool((client) => {
-    client.queryObject(unlockInstance(instanceId));
+    client.queryObject(unlockExecution(executionId));
   });
 };
 
+// TODO use queryarguments to avoid sql injection
 const queryObject =
-  <T>(query: string) =>
+  <T>(query: string, queryArguments?: QueryArguments) =>
   (client: Transaction | PoolClient): Promise<QueryObjectResult<T>> => {
     if (DEBUG_ENABLED) {
       console.log(query);
     }
-    return client.queryObject<T>(query);
+    return client.queryObject<T>(query, queryArguments);
   };
 
 const eventsFor = (
   useClient: UseClient,
-  instanceId: string,
+  executionId: string,
   table: string,
-  eventsQuery: string
+  eventsQuery: string,
 ): Events => {
   return {
     add: async (...events: [...HistoryEvent[]]) => {
-      await useClient(queryObject(insertEvents(table, instanceId, events)));
+      await useClient(queryObject(insertEvents(table, executionId, events)));
     },
     del: async (...events: [...HistoryEvent[]]) => {
-      await useClient(queryObject(deleteEvents(table, instanceId, events)));
+      await useClient(queryObject(deleteEvents(table, executionId, events)));
     },
     get: async () => {
       const events = await useClient(queryObject<PersistedEvent>(eventsQuery));
@@ -74,40 +78,39 @@ const eventsFor = (
   };
 };
 
-const instancesFor =
-  (useClient: UseClient) =>
-  (instanceId: string): Instance => {
+const executionsFor =
+  (useClient: UseClient) => (executionId: string): Execution => {
     return {
       pending: eventsFor(
         useClient,
-        instanceId,
+        executionId,
         "pending_events",
-        queryPendingEvents(instanceId)
+        queryPendingEvents(executionId),
       ),
       history: eventsFor(
         useClient,
-        instanceId,
+        executionId,
         "history",
-        queryHistory(instanceId)
+        queryHistory(executionId),
       ),
       get: () =>
-        useClient(queryObject<WorkflowInstance>(getInstance(instanceId))).then(
-          ({ rows }) => (rows.length === 0 ? undefined : rows[0])
-        ),
-      create: async (instance: WorkflowInstance) => {
-        await useClient(queryObject(insertInstance(instanceId, instance)));
+        useClient(
+          queryObject<WorkflowExecution>(getExecution(executionId)),
+        ).then(({ rows }) => (rows.length === 0 ? undefined : rows[0])),
+      create: async (execution: WorkflowExecution) => {
+        await useClient(queryObject(insertExecution(executionId, execution)));
       },
-      update: async (instance: WorkflowInstance) => {
-        await useClient(queryObject(updateInstance(instanceId, instance)));
+      update: async (execution: WorkflowExecution) => {
+        await useClient(queryObject(updateExecution(executionId, execution)));
       },
     };
   };
 
 function dbFor(useClient: UseClient): DB {
   return {
-    instance: instancesFor(useClient),
+    execution: executionsFor(useClient),
     withinTransaction: async <TResult>(
-      exec: (executor: DB) => Promise<TResult>
+      exec: (executor: DB) => Promise<TResult>,
     ): Promise<TResult> => {
       return await useClient(async (client) => {
         if (!isClient(client)) {
@@ -127,20 +130,18 @@ function dbFor(useClient: UseClient): DB {
         }
       });
     },
-    pendingExecutions: async (
+    pendingExecutions: (
       lockTimeoutMS: number,
-      limit: number
+      limit: number,
     ): Promise<PendingExecution[]> => {
-      return await useClient<PendingExecution[]>(async (client) => {
-        return await client
-          .queryObject<{ id: string }>(pendingInstances(lockTimeoutMS, limit))
-          .then(({ rows }) =>
-            rows.map(({ id: instance }) => ({
-              instance,
-              unlock: unlockWkflowInstance(instance),
-            }))
-          );
-      });
+      return useClient(
+        queryObject<{ id: string }>(pendingExecutions(lockTimeoutMS, limit)),
+      ).then(({ rows }) =>
+        rows.map(({ id: execution }) => ({
+          execution,
+          unlock: unlockWkflowExecution(execution),
+        }))
+      );
     },
   };
 }
