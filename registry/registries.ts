@@ -133,10 +133,9 @@ export const buildWorkflowRegistry = async () => {
   return {
     get: async (alias: string) => {
       const [namespace, name] = alias.split(".");
-      if (namespace.length === 0) {
-        return undefined;
-      }
-      const getExecutor = current[namespace];
+      const getExecutor = namespace.length === 0
+        ? current[alias]
+        : current[namespace];
       if (getExecutor === undefined) {
         return undefined;
       }
