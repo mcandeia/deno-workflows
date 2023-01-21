@@ -1,36 +1,36 @@
 // deno-lint-ignore-file no-explicit-any
-import { denoExecutor } from "../executors/deno/executor.ts";
-import { httpExecutorFor } from "../executors/http/executor.ts";
+import { denoRunner } from "../runners/deno/runner.ts";
+import { httpRunnerFor } from "../runners/http/runner.ts";
 import { Workflow } from "../mod.ts";
 import { PromiseOrValue } from "../promise.ts";
-import { WorkflowExecutor } from "../workers/executor.ts";
+import { WorkflowRunner } from "../workers/runner.ts";
 import {
-  DenoWorkflowExecutorRef,
-  HttpWorkflowExecutorRef,
-  WorkflowExecutorRef,
+  DenoWorkflowRunnerRef,
+  HttpWorkflowRunnerRef,
+  WorkflowRunnerRef,
 } from "./registries.ts";
 
 const deno = async (
-  { url }: DenoWorkflowExecutorRef,
-): Promise<WorkflowExecutor> => {
+  { url }: DenoWorkflowRunnerRef,
+): Promise<WorkflowRunner> => {
   const module = await import(url);
   if (typeof module?.default !== "function") {
     throw new Error(`invalid workflow module: ${module}`);
   }
-  return denoExecutor(module.default as Workflow);
+  return denoRunner(module.default as Workflow);
 };
 
-const http = ({ url }: HttpWorkflowExecutorRef): WorkflowExecutor => {
-  return httpExecutorFor(url);
+const http = ({ url }: HttpWorkflowRunnerRef): WorkflowRunner => {
+  return httpRunnerFor(url);
 };
 
-type ExecutorCreator<T extends WorkflowExecutor> = (
+type RunnerFactory<T extends WorkflowRunner> = (
   e: T,
-) => PromiseOrValue<WorkflowExecutor>;
+) => PromiseOrValue<WorkflowRunner>;
 
-export const executorBuilder: Record<
-  WorkflowExecutorRef["type"],
-  ExecutorCreator<any>
+export const runnerBuilder: Record<
+  WorkflowRunnerRef["type"],
+  RunnerFactory<any>
 > = {
   deno,
   http,

@@ -4,9 +4,9 @@ export interface Completed {
   result: unknown;
 }
 /**
- * Any function that receives the history and returns new pending events is considered a workflow executor.
+ * Any function that receives the history and returns new pending events is considered a workflow runner.
  */
-export type WorkflowExecutor = (
+export type WorkflowRunner = (
   executionId: string,
   history: HistoryEvent[],
   pending: HistoryEvent[],

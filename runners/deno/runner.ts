@@ -1,14 +1,15 @@
 import { WorkflowContext } from "../../context.ts";
 import { Arg } from "../../types.ts";
 import { HistoryEvent } from "../../workers/events.ts";
-import { Completed, WorkflowExecutor } from "../../workers/executor.ts";
+import { Completed, WorkflowRunner } from "../../workers/runner.ts";
+import { handleCommand } from "./commands.ts";
 import { apply } from "./events.ts";
 import { WorkflowState, zeroState } from "./state.ts";
 import { Workflow, WorkflowGen, WorkflowGenFn } from "./workflow.ts";
 
-export const denoExecutor = <TArgs extends Arg = Arg, TResult = unknown>(
+export const denoRunner = <TArgs extends Arg = Arg, TResult = unknown>(
   workflow: Workflow<TArgs, TResult>,
-): WorkflowExecutor =>
+): WorkflowRunner =>
 async (
   executionId: string,
   history: HistoryEvent[],
@@ -36,5 +37,5 @@ async (
     };
   }
 
-  return await state.current.run();
+  return await handleCommand(state.current, state);
 };

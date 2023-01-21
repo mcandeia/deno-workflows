@@ -1,7 +1,7 @@
 import { HistoryEvent } from "../../workers/events.ts";
-import { Completed, WorkflowExecutor } from "../../workers/executor.ts";
+import { Completed, WorkflowRunner } from "../../workers/runner.ts";
 
-export const httpExecutorFor = (url: string): WorkflowExecutor => {
+export const httpRunnerFor = (url: string): WorkflowRunner => {
   return async (
     executionId,
     history,

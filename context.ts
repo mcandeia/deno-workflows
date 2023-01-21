@@ -2,13 +2,12 @@ import {
   makeSeededGenerators,
   RandomGenerators,
 } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
+import { PromiseOrValue } from "./promise.ts";
 import {
-  CommandBase,
   ScheduleActivityCommand,
   SleepCommand,
   WaitForSignalCommand,
-} from "./executors/deno/commands.ts";
-import { PromiseOrValue } from "./promise.ts";
+} from "./runners/deno/commands.ts";
 import { Arg } from "./types.ts";
 
 export type ActivityResult<T> = PromiseOrValue<T>;
@@ -53,40 +52,40 @@ export class WorkflowContext {
    * waitForSignal wait for the given signal to be occurred.
    * @param signal the signal name
    */
-  public waitForSignal(signal: string): CommandBase {
-    return new WaitForSignalCommand(signal);
+  public waitForSignal(signal: string): WaitForSignalCommand {
+    return { name: "wait_signal", signal };
   }
 
   /**
    * Executes the activity for the given context and args.
    * @param activity the activity that should be executed
-   * @param args the activity args (optionally)
+   * @param input the activity args (optionally)
    */
   public callActivity<TArgs extends Arg = Arg, TResult = unknown>(
     activity: Activity<TArgs, TResult>,
-    ...args: [...TArgs]
-  ): CommandBase {
-    return new ScheduleActivityCommand<TArgs, TResult>(activity, this, args);
+    ...input: [...TArgs]
+  ): ScheduleActivityCommand<TArgs, TResult> {
+    return { name: "schedule_activity", activity, input };
   }
 
   /**
    * stop the current workflow execution and sleep the given miliseconds time.
    * @param sleepMs the time in miliseconds
    */
-  public sleep(sleepMs: number): CommandBase {
+  public sleep(sleepMs: number): SleepCommand {
     // get the current date & time (as milliseconds since Epoch)
     const currentTimeAsMs = Date.now();
 
     const adjustedTimeAsMs = currentTimeAsMs + sleepMs;
-    return new SleepCommand(new Date(adjustedTimeAsMs), this);
+    return this.sleepUntil(new Date(adjustedTimeAsMs));
   }
 
   /**
    * stops the current workflow execution and sleep until the given date.
-   * @param dt the date that should sleep.
+   * @param until the date that should sleep.
    */
-  public sleepUntil(dt: Date): CommandBase {
-    return new SleepCommand(dt, this);
+  public sleepUntil(until: Date): SleepCommand {
+    return { name: "sleep", until };
   }
 
   /**

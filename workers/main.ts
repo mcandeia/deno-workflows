@@ -4,7 +4,7 @@ import { postgres } from "../backends/postgres/db.ts";
 
 import { tryParseInt } from "../utils.ts";
 import { DB } from "../backends/backend.ts";
-import { hasCompleted } from "./executor.ts";
+import { hasCompleted } from "./runner.ts";
 import { startWorkers, WorkItem } from "./worker.ts";
 import {
   buildWorkflowRegistry,
@@ -74,11 +74,11 @@ const workflowHandler =
       if (maybeInstance === undefined) {
         throw new Error("workflow not found");
       }
-      const executor = maybeInstance
+      const runner = maybeInstance
         ? await registry.get(maybeInstance.alias)
         : undefined;
 
-      if (executor === undefined) {
+      if (runner === undefined) {
         throw new Error("workflow not found");
       }
 
@@ -87,7 +87,7 @@ const workflowHandler =
         executionDB.pending.get(),
       ]);
 
-      const newEventsOrCompleted = await executor(
+      const newEventsOrCompleted = await runner(
         executionId,
         history,
         pendingEvents,
