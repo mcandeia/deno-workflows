@@ -6,7 +6,7 @@ import {
   QueryArguments,
   QueryObjectResult,
 } from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
-import { HistoryEvent } from "../../workers/events.ts";
+import { HistoryEvent } from "../../runtime/core/events.ts";
 import { DEBUG_ENABLED } from "../../mod.ts";
 import { apply } from "../../utils.ts";
 import {
@@ -146,8 +146,6 @@ function dbFor(useClient: UseClient): DB {
   };
 }
 
-await usePool((client) => {
-  return client.queryObject(schema);
-}); // creating db schema.
+await usePool(queryObject(schema)); // creating db schema.
 
 export const postgres = () => dbFor(usePool);

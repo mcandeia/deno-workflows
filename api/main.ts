@@ -9,7 +9,7 @@ await serve(
     "POST@/executions": async (req) => {
       const { alias, input } = await req.json();
       return Response.json(
-        await service.startWorkflow(
+        await service.startExecution(
           { alias },
           Array.isArray(input) ? input : [input],
         ),
@@ -24,10 +24,18 @@ await serve(
       }
       return Response.json(execution);
     },
-    "DELETE@/executions/:id": (_req) =>
-      new Response("NOT IMPLEMENTED", { status: 501 }),
+    "DELETE@/executions/:id": async (req, _, { id }) => {
+      const reason = await req.json().then((resp) => resp.reason as string);
+      await service.cancelExecution(
+        id,
+        reason,
+      );
+      return Response.json(
+        { id, reason },
+      );
+    },
     "POST@/executions/:id/signals/:signal": async (req, _, { id, signal }) => {
-      await service.signalWorkflow(id, signal, await req.json());
+      await service.signalExecution(id, signal, await req.json());
       return Response.json(
         { id, signal },
       );

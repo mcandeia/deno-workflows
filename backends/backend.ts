@@ -1,6 +1,6 @@
-import { HistoryEvent } from "../workers/events.ts";
 import { PromiseOrValue } from "../promise.ts";
-import { Event } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { HistoryEvent } from "../runtime/core/events.ts";
+import { Arg } from "../types.ts";
 
 /**
  * Events is the operation that can be executed against the events.
@@ -53,14 +53,23 @@ export interface DB {
   withinTransaction<T>(f: (transactor: DB) => PromiseOrValue<T>): Promise<T>;
 }
 
-export interface WorkflowExecution<TResult = unknown> {
+export type WorkflowStatus =
+  | "completed"
+  | "canceled"
+  | "waiting_signal"
+  | "sleeping"
+  | "running";
+
+export const WORKFLOW_NOT_COMPLETED: WorkflowStatus[] = [
+  "running",
+  "sleeping",
+  "waiting_signal",
+];
+export interface WorkflowExecution<TArgs extends Arg = Arg, TResult = unknown> {
   id: string;
   alias: string;
   completedAt?: Date;
-  result?: TResult;
-}
-
-export interface HandlerOpts {
-  cancellation: Event;
-  concurrency: number;
+  status: WorkflowStatus;
+  input?: TArgs;
+  output?: TResult;
 }

@@ -1,4 +1,4 @@
-import { HistoryEvent } from "../../workers/events.ts";
+import { HistoryEvent } from "../../runtime/core/events.ts";
 import { isoDate, valueOrNull } from "./utils.ts";
 
 const queryEvents = (table: string, executionId: string) =>
@@ -10,7 +10,7 @@ export const queryPendingEvents = (executionId: string) =>
       "pending_events",
       executionId,
     )
-  } AND (visible_at is NULL OR visible_at <= now()) ORDER BY visible_at ASC`;
+  } AND (visible_at is NULL OR visible_at <= now()) ORDER BY visible_at ASC NULLS FIRST, timestamp ASC`;
 
 export const queryHistory = (executionId: string): string =>
   `${queryEvents("history", executionId)} ORDER BY seq ASC`;

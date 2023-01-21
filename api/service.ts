@@ -1,7 +1,7 @@
 import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 import { DB, WorkflowExecution } from "../backends/backend.ts";
+import { newEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
-import { newEvent } from "../workers/events.ts";
 
 /**
  * WorkflowCreationOptions is used for creating workflows of a given executionId.
@@ -13,6 +13,20 @@ export interface WorkflowCreationOptions {
 
 export class WorkflowService {
   constructor(protected backend: DB) {
+  }
+  /**
+   * Cancel the workflow instance execution.
+   */
+
+  public cancelExecution(
+    executionId: string,
+    reason?: string,
+  ): Promise<void> {
+    return this.backend.execution(executionId).pending.add({
+      ...newEvent(),
+      type: "workflow_canceled",
+      reason,
+    });
   }
 
   /**
@@ -29,7 +43,7 @@ export class WorkflowService {
   /**
    * Signal the workflow with the given signal and payload.
    */
-  public async signalWorkflow(
+  public async signalExecution(
     executionId: string,
     signal: string,
     payload?: unknown,
@@ -47,13 +61,18 @@ export class WorkflowService {
    * @param options the workflow creation options
    * @param input the workflow input
    */
-  public async startWorkflow<TArgs extends Arg = Arg>(
+  public async startExecution<TArgs extends Arg = Arg>(
     { alias, executionId }: WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
     const wkflowInstanceId = executionId ?? v4.generate();
     return await this.backend.withinTransaction(async (db) => {
-      const execution = { alias, id: wkflowInstanceId };
+      const execution: WorkflowExecution = {
+        alias,
+        id: wkflowInstanceId,
+        status: "running",
+        input,
+      };
       const executionsDB = db.execution(wkflowInstanceId);
       await executionsDB.create(execution); // cannot be parallelized
       await executionsDB.pending.add({

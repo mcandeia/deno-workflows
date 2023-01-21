@@ -2,8 +2,7 @@
 import { Activity } from "../../context.ts";
 import { isAwaitable, PromiseOrValue } from "../../promise.ts";
 import { Arg } from "../../types.ts";
-import { ActivityStartedEvent, newEvent } from "../../workers/events.ts";
-import { HistoryEvent } from "../../workers/events.ts";
+import { ActivityStartedEvent, HistoryEvent, newEvent } from "./events.ts";
 import { WorkflowState } from "./state.ts";
 
 /**
@@ -22,6 +21,11 @@ export interface CommandBase {
 
 export interface NoOpCommand extends CommandBase {
   name: "no_op";
+}
+
+export interface DelegatedCommand extends CommandBase {
+  name: "delegated";
+  getCmd: () => Promise<Command>;
 }
 
 /**
@@ -53,14 +57,32 @@ export interface FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   name: "finish_workflow";
   result: TResult;
 }
+
+export interface LocalActivityCommand<TResult = unknown> extends CommandBase {
+  name: "local_activity";
+  result: TResult;
+}
+
+export interface CancelWorkflowCommand extends CommandBase {
+  name: "cancel_workflow";
+  reason?: string;
+}
+
 export type Command =
+  | CancelWorkflowCommand
   | NoOpCommand
   | SleepCommand
   | ScheduleActivityCommand<any, any>
   | WaitForSignalCommand
-  | FinishWorkflowCommand<any>;
+  | FinishWorkflowCommand<any>
+  | DelegatedCommand
+  | LocalActivityCommand<any>;
 
 const no_op = () => [];
+const local_activity = (
+  { result }: LocalActivityCommand,
+): HistoryEvent[] => [{ ...newEvent(), type: "local_activity_called", result }];
+
 const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
   if (isReplaying) {
     return [];
@@ -85,6 +107,14 @@ const finish_workflow = ({ result }: FinishWorkflowCommand): HistoryEvent[] => [
     ...newEvent(),
     result,
     type: "workflow_finished",
+  },
+];
+
+const cancel_workflow = ({ reason }: CancelWorkflowCommand): HistoryEvent[] => [
+  {
+    ...newEvent(),
+    reason,
+    type: "workflow_canceled",
   },
 ];
 
@@ -143,8 +173,19 @@ const wait_signal = (
     },
   ];
 
+const delegated = async (
+  { getCmd, isReplaying }: DelegatedCommand,
+  state: WorkflowState,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  const cmd = await getCmd();
+  return handleCommand(cmd, state);
+};
+
 const handleByCommand: Record<
-  CommandBase["name"],
+  Command["name"],
   (c: any, state: WorkflowState<any, any>) => PromiseOrValue<HistoryEvent[]>
 > = {
   no_op,
@@ -152,10 +193,13 @@ const handleByCommand: Record<
   finish_workflow,
   schedule_activity,
   wait_signal,
+  delegated,
+  local_activity,
+  cancel_workflow,
 };
 
 export const handleCommand = async <TArgs extends Arg = Arg, TResult = unknown>(
-  c: CommandBase,
+  c: Command,
   state: WorkflowState<TArgs, TResult>,
 ): Promise<HistoryEvent[]> => {
   const promiseOrValue = handleByCommand[c.name](c, state);

@@ -5,9 +5,7 @@ import createOrder from "./createOrder.ts";
 
 await serve(
   router({
-    "*": await useWorkflowRoutes({
-      durableServerAddr: "http://localhost:8001/",
-      runnerAddr: "http://localhost:8002/",
+    "*": useWorkflowRoutes({
       baseRoute: "/",
     }, [createOrder]),
   }),

@@ -1,15 +1,13 @@
 // deno-lint-ignore-file no-explicit-any
 import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
+import { WorkflowContext } from "./mod.ts";
+import { Workflow } from "./runtime/core/workflow.ts";
 import { Arg } from "./types.ts";
-import { HistoryEvent } from "./workers/events.ts";
-import { denoRunner } from "./runners/deno/runner.ts";
-import { Workflow } from "./runners/deno/workflow.ts";
 
-export interface RunRequest {
+export interface RunRequest<TArgs extends Arg = Arg> {
+  results: [[...TArgs], unknown];
   executionId: string;
-  history: HistoryEvent[];
-  pendingEvents: HistoryEvent[];
 }
 
 /**
@@ -20,19 +18,29 @@ export interface RunRequest {
 export const workflowHTTPHandler = <TArgs extends Arg = Arg, TResult = unknown>(
   workflow: Workflow<TArgs, TResult>,
 ): Handler => {
-  const runner = denoRunner(workflow);
   return async function (req) {
-    const { executionId, history, pendingEvents } = await req
-      .json() as RunRequest;
+    const { results: [input, ...results], executionId } = await req
+      .json() as RunRequest<TArgs>;
+    const ctx = new WorkflowContext(executionId);
 
-    const resp = await runner(executionId, history, pendingEvents);
-    return Response.json(resp);
+    const genFn = workflow(ctx, ...input);
+    let cmd = genFn.next();
+    for (const result of results) {
+      if (cmd.done) {
+        break;
+      }
+      cmd = genFn.next(result);
+    }
+
+    if (cmd.done) {
+      return Response.json({ name: "finish_workflow", result: cmd.value });
+    }
+
+    return Response.json(cmd.value);
   };
 };
 
 export interface CreateRouteOptions {
-  durableServerAddr: string;
-  runnerAddr: string;
   baseRoute: string;
 }
 
@@ -41,12 +49,6 @@ export interface AliasedWorkflow {
   func: Workflow<any, any>;
 }
 
-const removeSlashAtEnd = (url: string): string => {
-  if (url.length == 0) {
-    return url;
-  }
-  return url.endsWith("/") ? url.slice(0, url.length - 1) : url;
-};
 const isAlisedWorkflow = (
   wkflow: AliasedWorkflow | Workflow<any, any>,
 ): wkflow is AliasedWorkflow => {
@@ -54,11 +56,10 @@ const isAlisedWorkflow = (
 };
 export type Workflows = Array<Workflow<any, any> | AliasedWorkflow>;
 
-export const useWorkflowRoutes = async (
-  { durableServerAddr, runnerAddr, baseRoute }: CreateRouteOptions,
+export const useWorkflowRoutes = (
+  { baseRoute }: CreateRouteOptions,
   workflows: Workflows,
-): Promise<Handler> => {
-  const promises: Promise<void>[] = [];
+): Handler => {
   let routes: Routes = {};
   for (const wkflow of workflows) {
     const { alias, func } = isAlisedWorkflow(wkflow)
@@ -69,26 +70,6 @@ export const useWorkflowRoutes = async (
       ...routes,
       [`POST@${route}`]: workflowHTTPHandler(func),
     };
-
-    promises.push(
-      fetch(`${durableServerAddr}workflows/${alias}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          type: "http",
-          url: `${removeSlashAtEnd(runnerAddr)}${route}`,
-        }),
-      }).then(async (resp) => {
-        if (resp.status >= 400) {
-          throw new Error(
-            `error when trying to save workflow routes ${resp.status}: ${
-              JSON.stringify(await resp.json())
-            }`,
-          );
-        }
-      }),
-    );
   }
-
-  await Promise.all(promises);
   return router(routes);
 };
