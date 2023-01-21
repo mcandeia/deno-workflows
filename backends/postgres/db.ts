@@ -110,7 +110,7 @@ function dbFor(useClient: UseClient): DB {
   return {
     execution: executionsFor(useClient),
     withinTransaction: async <TResult>(
-      exec: (executor: DB) => Promise<TResult>,
+      exec: (db: DB) => Promise<TResult>,
     ): Promise<TResult> => {
       return await useClient(async (client) => {
         if (!isClient(client)) {

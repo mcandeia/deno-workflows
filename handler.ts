@@ -3,8 +3,8 @@ import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
 import { Arg } from "./types.ts";
 import { HistoryEvent } from "./workers/events.ts";
-import { denoExecutor } from "./executors/deno/executor.ts";
-import { Workflow } from "./executors/deno/workflow.ts";
+import { denoRunner } from "./runners/deno/runner.ts";
+import { Workflow } from "./runners/deno/workflow.ts";
 
 export interface RunRequest {
   executionId: string;
@@ -20,19 +20,19 @@ export interface RunRequest {
 export const workflowHTTPHandler = <TArgs extends Arg = Arg, TResult = unknown>(
   workflow: Workflow<TArgs, TResult>,
 ): Handler => {
-  const executor = denoExecutor(workflow);
+  const runner = denoRunner(workflow);
   return async function (req) {
     const { executionId, history, pendingEvents } = await req
       .json() as RunRequest;
 
-    const resp = await executor(executionId, history, pendingEvents);
+    const resp = await runner(executionId, history, pendingEvents);
     return Response.json(resp);
   };
 };
 
 export interface CreateRouteOptions {
   durableServerAddr: string;
-  executorAddr: string;
+  runnerAddr: string;
   baseRoute: string;
 }
 
@@ -55,7 +55,7 @@ const isAlisedWorkflow = (
 export type Workflows = Array<Workflow<any, any> | AliasedWorkflow>;
 
 export const useWorkflowRoutes = async (
-  { durableServerAddr, executorAddr, baseRoute }: CreateRouteOptions,
+  { durableServerAddr, runnerAddr, baseRoute }: CreateRouteOptions,
   workflows: Workflows,
 ): Promise<Handler> => {
   const promises: Promise<void>[] = [];
@@ -75,7 +75,7 @@ export const useWorkflowRoutes = async (
         method: "PUT",
         body: JSON.stringify({
           type: "http",
-          url: `${removeSlashAtEnd(executorAddr)}${route}`,
+          url: `${removeSlashAtEnd(runnerAddr)}${route}`,
         }),
       }).then(async (resp) => {
         if (resp.status >= 400) {

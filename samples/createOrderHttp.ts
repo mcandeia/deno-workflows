@@ -7,7 +7,7 @@ await serve(
   router({
     "*": await useWorkflowRoutes({
       durableServerAddr: "http://localhost:8001/",
-      executorAddr: "http://localhost:8002/",
+      runnerAddr: "http://localhost:8002/",
       baseRoute: "/",
     }, [createOrder]),
   }),
