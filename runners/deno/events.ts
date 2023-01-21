@@ -10,7 +10,7 @@ import {
 } from "../../workers/events.ts";
 
 import { Arg } from "../../types.ts";
-import { Command, FinishWorkflowCommand } from "./commands.ts";
+import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
 import { isNoArgFn } from "./workflow.ts";
 
@@ -23,7 +23,7 @@ const next = <TResult>({
   done,
   value,
 }: IteratorResult<Command, TResult>): Command => {
-  return done ? new FinishWorkflowCommand<TResult>(value) : value;
+  return done ? { result: value, name: "finish_workflow" } : value;
 };
 
 export const no_op = function <TArgs extends Arg = Arg, TResult = unknown>(
@@ -40,9 +40,9 @@ export const waiting_signal = function <
   state: WorkflowState<TArgs, TResult>,
   { signal }: WaitingSignalEvent,
 ): WorkflowState<TArgs, TResult> {
-  state.current.isReplaying = true;
   return {
     ...state,
+    current: { ...state.current, isReplaying: true },
     signals: { [signal]: state.generatorFn! },
   };
 };
@@ -69,8 +69,7 @@ const timer_scheduled = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
   _: HistoryEvent,
 ): WorkflowState<TArgs, TResult> {
-  state.current.isReplaying = true;
-  return state;
+  return { ...state, current: { ...state.current, isReplaying: true } };
 };
 
 const timer_fired = function <TArgs extends Arg = Arg, TResult = unknown>(
@@ -111,8 +110,7 @@ const activity_started = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
   _: ActivityStartedEvent<TArgs>,
 ): WorkflowState<TArgs, TResult> {
-  state.current.isReplaying = true; // TODO check if this event comes from current command by comparing ids.
-  return state;
+  return { ...state, current: { ...state.current, isReplaying: true } }; // TODO check if this event comes from current command by comparing ids.
 };
 
 const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(

@@ -2,6 +2,7 @@ import { WorkflowContext } from "../../context.ts";
 import { Arg } from "../../types.ts";
 import { HistoryEvent } from "../../workers/events.ts";
 import { Completed, WorkflowRunner } from "../../workers/runner.ts";
+import { handleCommand } from "./commands.ts";
 import { apply } from "./events.ts";
 import { WorkflowState, zeroState } from "./state.ts";
 import { Workflow, WorkflowGen, WorkflowGenFn } from "./workflow.ts";
@@ -36,5 +37,5 @@ async (
     };
   }
 
-  return await state.current.run();
+  return await handleCommand(state.current, state);
 };
