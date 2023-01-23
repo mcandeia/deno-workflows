@@ -1,14 +1,23 @@
 export default `
+DO $$ BEGIN
+    CREATE TYPE WORKFLOW_STATUS AS ENUM ('completed', 'canceled', 'waiting_signal', 'sleeping', 'running');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 CREATE TABLE IF NOT EXISTS executions (
     id TEXT,
     alias TEXT NOT NULL,
     completed_at TIMESTAMP NULL,
-    result JSON NULL,
+    output JSON NULL,
+    input JSON NULL,
+    metadata JSON NULL,
     locked_until TIMESTAMP NULL,
+    status WORKFLOW_STATUS NOT NULL DEFAULT 'running',
     PRIMARY KEY(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_executions_locked_until_completed_at ON executions (locked_until, completed_at);
+CREATE INDEX IF NOT EXISTS idx_executions_locked_until_status ON executions (locked_until, status);
 CREATE INDEX IF NOT EXISTS idx_executions_aliases ON executions (alias);
 
 CREATE TABLE IF NOT EXISTS pending_events (
@@ -25,7 +34,7 @@ CREATE TABLE IF NOT EXISTS pending_events (
             REFERENCES executions(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_pending_events_execution_id_visible_at ON pending_events (execution_id, visible_at);
+CREATE INDEX IF NOT EXISTS idx_pending_events_execution_id_visible_at ON pending_events (execution_id, timestamp, visible_at);
 
 CREATE TABLE IF NOT EXISTS history (
     id TEXT,

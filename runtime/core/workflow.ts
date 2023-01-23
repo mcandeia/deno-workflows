@@ -7,7 +7,7 @@ import { Arg } from "../../types.ts";
  */
 export type WorkflowGen<TResp extends unknown = unknown> = Generator<
   Command,
-  TResp,
+  TResp | undefined,
   // deno-lint-ignore no-explicit-any
   any
 >;

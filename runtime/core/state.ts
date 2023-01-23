@@ -1,3 +1,4 @@
+import { WorkflowStatus } from "../../backends/backend.ts";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowGen, WorkflowGenFn } from "./workflow.ts";
@@ -6,15 +7,16 @@ import { WorkflowGen, WorkflowGenFn } from "./workflow.ts";
  * WorkflowState is the current state of the workflow for execution.
  */
 export interface WorkflowState<TArgs extends Arg = Arg, TResult = unknown> {
+  status: WorkflowStatus;
   current: Command;
   workflowFn: WorkflowGenFn<TArgs, TResult>;
   hasFinished?: boolean;
   input?: TArgs;
-  result?: TResult;
+  output?: TResult | undefined;
   exception?: unknown;
   startedAt?: Date;
   finishedAt?: Date;
-  cancelledAt?: Date;
+  canceledAt?: Date;
   generatorFn?: WorkflowGen<TResult>;
   signals: Record<string, WorkflowGen<TResult> | undefined>;
 }
@@ -28,6 +30,7 @@ export function zeroState<TArgs extends Arg = Arg, TResult = unknown>(
   workflowFn: WorkflowGenFn<TArgs, TResult>,
 ): WorkflowState<TArgs, TResult> {
   return {
+    status: "running",
     current: {
       name: "no_op",
     },

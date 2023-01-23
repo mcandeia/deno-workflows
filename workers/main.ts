@@ -4,12 +4,17 @@ import { postgres } from "../backends/postgres/db.ts";
 
 import { tryParseInt } from "../utils.ts";
 import { DB } from "../backends/backend.ts";
-import { hasCompleted } from "./runner.ts";
 import { startWorkers, WorkItem } from "./worker.ts";
 import {
   buildWorkflowRegistry,
   WorkflowRegistry,
 } from "../registry/registries.ts";
+import { WorkflowContext } from "../context.ts";
+import { handleCommand } from "../runtime/core/commands.ts";
+import { WorkflowState, zeroState } from "../runtime/core/state.ts";
+import { WorkflowGen, WorkflowGenFn } from "../runtime/core/workflow.ts";
+import { Arg } from "../types.ts";
+import { apply, HistoryEvent } from "../runtime/core/events.ts";
 
 export interface HandlerOpts {
   cancellation?: Event;
@@ -67,18 +72,19 @@ async function* executionsGenerator(
 }
 
 const workflowHandler =
-  (client: DB, registry: WorkflowRegistry) => async (executionId: string) => {
+  (client: DB, registry: WorkflowRegistry) =>
+  async <TArgs extends Arg = Arg, TResult = unknown>(executionId: string) => {
     await client.withinTransaction(async (db) => {
       const executionDB = db.execution(executionId);
       const maybeInstance = await executionDB.get();
       if (maybeInstance === undefined) {
         throw new Error("workflow not found");
       }
-      const runner = maybeInstance
-        ? await registry.get(maybeInstance.alias)
+      const workflow = maybeInstance
+        ? await registry.get<TArgs, TResult>(maybeInstance.alias)
         : undefined;
 
-      if (runner === undefined) {
+      if (workflow === undefined) {
         throw new Error("workflow not found");
       }
 
@@ -87,11 +93,45 @@ const workflowHandler =
         executionDB.pending.get(),
       ]);
 
-      const newEventsOrCompleted = await runner(
-        executionId,
-        history,
-        pendingEvents,
-      );
+      const ctx = new WorkflowContext(executionId);
+      const workflowFn: WorkflowGenFn<TArgs, TResult> = (
+        ...args: [...TArgs]
+      ): WorkflowGen<TResult> => {
+        return workflow(ctx, ...args);
+      };
+
+      let state: WorkflowState<TArgs, TResult> = [
+        ...history,
+        ...pendingEvents,
+      ].reduce(apply, zeroState(workflowFn));
+
+      const asPendingEvents: HistoryEvent[] = [];
+      while (
+        state.canceledAt === undefined &&
+        !state.hasFinished &&
+        !state.current.isReplaying
+      ) {
+        const newEvents = await handleCommand(state.current, state);
+        if (newEvents.length === 0) {
+          break;
+        }
+        for (const newEvent of newEvents) {
+          if (newEvent.visibleAt === undefined) {
+            state = apply(state, newEvent);
+            pendingEvents.push(newEvent);
+            if (
+              state.canceledAt === undefined &&
+              !state.hasFinished &&
+              !state.current.isReplaying
+            ) {
+              break;
+            }
+          } else {
+            asPendingEvents.push(newEvent);
+          }
+        }
+      }
+
       let lastSeq = history.length === 0 ? 0 : history[history.length - 1].seq;
 
       const opts: Promise<void>[] = [
@@ -100,19 +140,20 @@ const workflowHandler =
           ...pendingEvents.map((event) => ({ ...event, seq: ++lastSeq })),
         ),
       ];
-      if (hasCompleted(newEventsOrCompleted)) {
-        opts.push(
-          executionDB.update({
-            ...maybeInstance,
-            ...newEventsOrCompleted,
-            completedAt: new Date(),
-          }),
-        );
-      } else {
-        if (newEventsOrCompleted.length !== 0) {
-          opts.push(executionDB.pending.add(...newEventsOrCompleted));
-        }
+
+      if (asPendingEvents.length !== 0) {
+        opts.push(executionDB.pending.add(...asPendingEvents));
       }
+
+      opts.push(
+        executionDB.update({
+          ...maybeInstance,
+          status: state.status,
+          output: state.output,
+          completedAt: state.hasFinished ? new Date() : undefined,
+        }),
+      );
+
       await Promise.all(opts);
     });
   };
@@ -138,6 +179,10 @@ const run = async (
 const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
 const cancellation = new Event();
 Deno.addSignalListener("SIGINT", () => {
+  cancellation.set();
+});
+
+Deno.addSignalListener("SIGTERM", () => {
   cancellation.set();
 });
 

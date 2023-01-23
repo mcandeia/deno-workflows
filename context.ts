@@ -4,10 +4,11 @@ import {
 } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 import { PromiseOrValue } from "./promise.ts";
 import {
+  LocalActivityCommand,
   ScheduleActivityCommand,
   SleepCommand,
   WaitForSignalCommand,
-} from "./runners/deno/commands.ts";
+} from "./runtime/core/commands.ts";
 import { Arg } from "./types.ts";
 
 export type ActivityResult<T> = PromiseOrValue<T>;
@@ -66,6 +67,16 @@ export class WorkflowContext {
     ...input: [...TArgs]
   ): ScheduleActivityCommand<TArgs, TResult> {
     return { name: "schedule_activity", activity, input };
+  }
+
+  /**
+   * Executes the activity for the given context and args.
+   * @param activity the activity that should be executed
+   */
+  public callLocalActivity<TResult = unknown>(
+    activity: () => TResult,
+  ): LocalActivityCommand<TResult> {
+    return { name: "local_activity", result: activity() };
   }
 
   /**
