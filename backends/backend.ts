@@ -56,14 +56,12 @@ export interface DB {
 export type WorkflowStatus =
   | "completed"
   | "canceled"
-  | "waiting_signal"
   | "sleeping"
   | "running";
 
 export const WORKFLOW_NOT_COMPLETED: WorkflowStatus[] = [
   "running",
   "sleeping",
-  "waiting_signal",
 ];
 export interface WorkflowExecution<TArgs extends Arg = Arg, TResult = unknown> {
   id: string;

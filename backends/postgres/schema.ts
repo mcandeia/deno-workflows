@@ -1,6 +1,6 @@
 export default `
 DO $$ BEGIN
-    CREATE TYPE WORKFLOW_STATUS AS ENUM ('completed', 'canceled', 'waiting_signal', 'sleeping', 'running');
+    CREATE TYPE WORKFLOW_STATUS AS ENUM ('completed', 'canceled', 'sleeping', 'running');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;

@@ -143,7 +143,7 @@ export const waiting_signal = function <
 ): WorkflowState<TArgs, TResult> {
   return {
     ...state,
-    status: "waiting_signal",
+    status: "sleeping",
     current: { ...state.current, isReplaying: true },
     signals: { [signal]: state.generatorFn! },
   };
